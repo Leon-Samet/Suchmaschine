@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f6f5f0" />
+    <meta name="description" content="Finde Anleitungen, Serviceinfos und Reparaturhilfen für Handwerk und Servicetechnik." />
+    <title>WerkFinder – Wissen fürs Handwerk</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="WerkFinder Startseite">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span>werk<span class="brand-accent">finder</span></span>
+      </a>
+      <div class="topbar-note"><span class="status-dot"></span> Wissen fürs Handwerk</div>
+      <a class="topbar-link" href="#so-funktionierts">Über WerkFinder <span aria-hidden="true">↗</span></a>
+    </header>
+
+    <main id="top">
+      <section class="intro" aria-labelledby="page-title">
+        <div class="eyebrow"><span class="eyebrow-line"></span> DEIN WERKZEUG FÜR DIE SUCHE</div>
+        <h1 id="page-title">Die Antwort liegt<br />irgendwo da draußen.<br /><span>Finden wir sie.</span></h1>
+        <p class="intro-copy">Beschreib einfach, woran du arbeitest. WerkFinder sucht passende Anleitungen, Herstellerinfos und Reparaturhilfen für dich zusammen.</p>
+        <div class="intro-stamp" aria-hidden="true"><span>WF</span><span>01 / SUCHEN</span></div>
+      </section>
+
+      <section class="search-panel" aria-label="Handwerkssuche">
+        <div class="panel-topline"><span>WAS HAST DU VOR?</span><span class="panel-index">01 <i>/</i> 03</span></div>
+        <form id="search-form">
+          <label class="sr-only" for="query">Beschreibe, wonach du suchst</label>
+          <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4.3 4.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <input id="query" name="query" type="search" autocomplete="off" maxlength="200" placeholder="z. B. Miele Kühlschrank Tür ausbauen" required />
+            <button class="search-button" type="submit"><span>Suchen</span><span aria-hidden="true">↗</span></button>
+          </div>
+          <div class="search-meta"><span>Freitextsuche · ganz normale Sprache</span><span id="query-count">0 / 200</span></div>
+        </form>
+        <div class="trade-row">
+          <span class="trade-label">BEREICH</span>
+          <div class="trade-options" role="group" aria-label="Gewerk auswählen">
+            <button class="trade-option is-selected" type="button" data-trade="">Alles</button>
+            <button class="trade-option" type="button" data-trade="Elektrotechnik">Elektro</button>
+            <button class="trade-option" type="button" data-trade="Sanitär und Heizung">Sanitär &amp; Heizung</button>
+            <button class="trade-option" type="button" data-trade="Haushaltsgeräte">Haushaltsgeräte</button>
+            <button class="trade-option" type="button" data-trade="Servicetechnik">Servicetechnik</button>
+          </div>
+        </div>
+        <div class="examples">
+          <span>IDEEN ZUM LOSLEGEN</span>
+          <button type="button" class="example-chip" data-query="Miele Kühlschrank Tür ausbauen">Miele Kühlschrank · Tür ausbauen <span>↗</span></button>
+          <button type="button" class="example-chip" data-query="Toilette Spülkasten reparieren">Spülkasten reparieren <span>↗</span></button>
+          <button type="button" class="example-chip" data-query="Lichtschalter anschließen Anleitung">Lichtschalter anschließen <span>↗</span></button>
+        </div>
+      </section>
+
+      <section id="results" class="results" aria-live="polite" hidden>
+        <div class="results-heading">
+          <div><div class="eyebrow"><span class="eyebrow-line"></span> DEINE SUCHWEGE</div><h2>Das könnte weiterhelfen.</h2></div>
+          <button id="copy-query" class="copy-button" type="button" title="Suchanfrage kopieren"><span aria-hidden="true">▢</span> Anfrage kopieren</button>
+        </div>
+        <p id="results-summary" class="results-summary"></p>
+        <div id="result-grid" class="result-grid"></div>
+        <p class="results-note"><span aria-hidden="true">↗</span> Die Links führen zu externen Suchergebnissen. Prüfe vor der Arbeit immer die Herstellerangaben und Sicherheitsregeln.</p>
+      </section>
+
+      <section class="how-section" id="so-funktionierts">
+        <div class="how-title"><div class="eyebrow"><span class="eyebrow-line"></span> EINFACH LOSLEGEN</div><h2>Vom Problem<br />zum nächsten Schritt.</h2></div>
+        <div class="how-steps">
+          <article class="how-step"><span class="step-number">01</span><div><h3>Beschreiben</h3><p>Was ist kaputt? Was möchtest du montieren oder wissen?</p></div><span class="step-arrow" aria-hidden="true">↘</span></article>
+          <article class="how-step"><span class="step-number">02</span><div><h3>Bereich wählen</h3><p>Gewerk anklicken oder einfach alles durchsuchen lassen.</p></div><span class="step-arrow" aria-hidden="true">↘</span></article>
+          <article class="how-step"><span class="step-number">03</span><div><h3>Quellen öffnen</h3><p>Passende Suchwege öffnen und die richtige Anleitung finden.</p></div><span class="step-arrow" aria-hidden="true">↗</span></article>
+        </div>
+      </section>
+    </main>
+
+    <footer><a class="brand footer-brand" href="#top"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span><span>werk<span class="brand-accent">finder</span></span></a><span>Ein guter nächster Schritt beginnt mit einer guten Suche.</span><span>WERKFINDER · 2026</span></footer>
+  </body>
+</html>

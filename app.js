@@ -1,3 +1,24 @@
+const passwordForm = document.querySelector("#password-form");
+const passwordInput = document.querySelector("#site-password");
+const passwordError = document.querySelector("#password-error");
+const passwordGate = document.querySelector(".password-gate");
+const siteContent = document.querySelector("#site-content");
+
+passwordForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (passwordInput.value === "4741L") {
+    passwordGate.hidden = true;
+    siteContent.hidden = false;
+    return;
+  }
+  passwordError.hidden = false;
+  passwordInput.select();
+});
+
+passwordInput.addEventListener("input", () => {
+  passwordError.hidden = true;
+});
+
 const form = document.querySelector("#search-form");
 const queryInput = document.querySelector("#query");
 const queryCount = document.querySelector("#query-count");

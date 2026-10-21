@@ -13,3 +13,7 @@ Das Repository kann als statische Website direkt mit Vercel verbunden werden. Fr
 ## Aktueller Umfang
 
 Die App leitet Suchanfragen an Google und YouTube weiter. Sie ruft noch keine eigene KI, Datenbank oder Hersteller-API auf und zeigt keine selbst verifizierten Treffer an. Vor Arbeiten an Geräten oder Installationen sind Herstellerangaben und Sicherheitsregeln maßgeblich.
+
+## Temporäre Passwort-Abfrage
+
+Beim Öffnen der Seite wird ein Passwort abgefragt. Diese Abfrage läuft ausschließlich im Browser und ist nur eine einfache Zugangshürde für den Entwurf: Das Passwort ist im JavaScript der statischen Website sichtbar und bietet keinen echten Zugriffsschutz. Für vertrauliche Inhalte muss ein serverseitiger Schutz beim Hosting-Anbieter eingerichtet werden. Zum späteren Entfernen müssen die Passwort-Abfrage in `index.html`, die Prüfung in `app.js`, die zugehörigen Regeln in `styles.css` und dieser Abschnitt entfernt werden.

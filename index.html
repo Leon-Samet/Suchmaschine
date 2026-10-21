@@ -13,16 +13,30 @@
     <script src="app.js" defer></script>
   </head>
   <body>
-    <header class="topbar">
-      <a class="brand" href="#top" aria-label="WerkFinder Startseite">
-        <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
-        <span>werk<span class="brand-accent">finder</span></span>
-      </a>
-      <div class="topbar-note"><span class="status-dot"></span> Wissen fürs Handwerk</div>
-      <a class="topbar-link" href="#so-funktionierts">Über WerkFinder <span aria-hidden="true">↗</span></a>
-    </header>
+    <section class="password-gate" aria-labelledby="password-title">
+      <form id="password-form" class="password-card">
+        <span class="password-brand">werk<span class="brand-accent">finder</span></span>
+        <p class="eyebrow"><span class="eyebrow-line"></span> PRIVATER ENTWURF</p>
+        <h1 id="password-title">Zugang erforderlich.</h1>
+        <p class="password-copy">Gib das Passwort ein, um WerkFinder zu öffnen.</p>
+        <label for="site-password">Passwort</label>
+        <input id="site-password" name="password" type="password" autocomplete="current-password" required autofocus />
+        <p id="password-error" class="password-error" role="alert" hidden>Das Passwort ist nicht richtig. Bitte versuche es erneut.</p>
+        <button class="search-button password-submit" type="submit"><span>Seite öffnen</span><span aria-hidden="true">↗</span></button>
+      </form>
+    </section>
 
-    <main id="top">
+    <div id="site-content" hidden>
+      <header class="topbar">
+        <a class="brand" href="#top" aria-label="WerkFinder Startseite">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span>werk<span class="brand-accent">finder</span></span>
+        </a>
+        <div class="topbar-note"><span class="status-dot"></span> Wissen fürs Handwerk</div>
+        <a class="topbar-link" href="#so-funktionierts">Über WerkFinder <span aria-hidden="true">↗</span></a>
+      </header>
+
+      <main id="top">
       <section class="intro" aria-labelledby="page-title">
         <div class="eyebrow"><span class="eyebrow-line"></span> DEIN WERKZEUG FÜR DIE SUCHE</div>
         <h1 id="page-title">Die Antwort liegt<br />irgendwo da draußen.<br /><span>Finden wir sie.</span></h1>
@@ -77,8 +91,9 @@
           <article class="how-step"><span class="step-number">03</span><div><h3>Quellen öffnen</h3><p>Passende Suchwege öffnen und die richtige Anleitung finden.</p></div><span class="step-arrow" aria-hidden="true">↗</span></article>
         </div>
       </section>
-    </main>
+      </main>
 
-    <footer><a class="brand footer-brand" href="#top"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span><span>werk<span class="brand-accent">finder</span></span></a><span>Ein guter nächster Schritt beginnt mit einer guten Suche.</span><span>WERKFINDER · 2026</span></footer>
+      <footer><a class="brand footer-brand" href="#top"><span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span><span>werk<span class="brand-accent">finder</span></span></a><span>Ein guter nächster Schritt beginnt mit einer guten Suche.</span><span>WERKFINDER · 2026</span></footer>
+    </div>
   </body>
 </html>

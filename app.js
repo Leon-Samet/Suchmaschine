@@ -36,6 +36,13 @@ const buildStepsTitle = document.querySelector("#build-steps-title");
 const buildSteps = document.querySelector("#build-steps");
 const buildParts = document.querySelector("#build-parts");
 const buildMaterials = document.querySelector("#build-materials");
+const buildTools = document.querySelector("#build-tools");
+const buildSafety = document.querySelector("#build-safety");
+const sketchBadge = document.querySelector("#sketch-badge");
+const buildPartsTitle = document.querySelector("#build-parts-title");
+const buildMaterialsTitle = document.querySelector("#build-materials-title");
+const buildToolsTitle = document.querySelector("#build-tools-title");
+const buildNote = document.querySelector("#build-note");
 let selectedSearchType = "all";
 let currentSearch = "";
 
@@ -111,7 +118,7 @@ const sketchTypes = [
     id: "roof",
     pattern: /\b(dachstuhl|satteldach|dach|dachsparren|firstpfette|kehlbalken)\b/i,
     title: "Satteldach · konzeptioneller Schnitt",
-    defaults: { width: 800, depth: 600, height: 600, pitch: 45 },
+    defaults: { width: 800, depth: 600, height: 460, pitch: 35 },
     components: ["Sparren (Dachfläche)", "Firstpfette (First)", "Mittelpfetten", "Kehlbalken", "Fußpfette / Auflager", "Stützen und Wandauflager"],
     steps: ["Spannweite, Dachform, Nutzung und örtliche Einwirkungen durch Fachplanung festlegen.", "Querschnitte, Verbindungsmittel, Aussteifung und Auflager statisch bemessen lassen.", "Dachstuhl nur nach geprüfter Werk- und Montageplanung fertigen und errichten."],
     isStructural: true,
@@ -129,7 +136,7 @@ const sketchTypes = [
     id: "stairs",
     pattern: /\b(treppe|treppen|stufen|treppenlauf)\b/i,
     title: "Treppe · schematischer Seitenriss",
-    defaults: { width: 100, depth: 280, height: 280 },
+    defaults: { width: 100, depth: 420, height: 280 },
     components: ["Stufen", "Setzstufen (optional)", "Wangen", "An- und Austritt"],
     steps: ["Geschosshöhe, verfügbare Lauflänge und Nutzung exakt aufnehmen.", "Steigung, Auftritt, Laufbreite, Geländer und Kopfhöhe nach geltenden Regeln planen.", "Tragwerk und Anschlüsse vor Fertigung fachlich prüfen lassen."],
     isStructural: true,
@@ -230,6 +237,10 @@ function isBuildRequest(query) {
     || /\bstell\w*\s+her\b/i.test(query);
 }
 
+function detectRepairRequest(query) {
+  return /\b(reparier\w*|reparatur|tropft|undicht|klemm\w*|verstopft|defekt|funktioniert nicht|austausch\w*|wechsel\w*|spülkasten|wasserhahn|lichtschalter|steckdose|sicherung|heizung entlüften|verputz\w*|putz\w*)\b/i.test(query);
+}
+
 function toCentimeters(value, unit) {
   const number = Number(value.replace(",", "."));
   if (!Number.isFinite(number) || number <= 0) return null;
@@ -254,16 +265,23 @@ function parseDimensions(query) {
     if (Object.values(values).every((value) => value !== null)) Object.assign(dimensions, values);
   }
 
-  const namedDimension = /(\d+(?:[.,]\d+)?)\s*(millimeter(?:n)?|mm|zentimeter(?:n)?|cm|meter(?:n)?|m)?\s*(gross|groß|breit|breite|breiten|tief|tiefe|tiefen|hoch|höhe|höhen|lang|länge|längen|spannweite|firsthöhe)\b/gi;
+  const labels = "(?:gross|groß|breit|breite|breiten|tief|tiefe|tiefen|hoch|höhe|höhen|geschosshöhe|geschosshöhen|lang|länge|längen|spannweite|firsthöhe)";
+  const unit = "(?:millimeter(?:n)?|mm|zentimeter(?:n)?|cm|meter(?:n)?|m)";
+  const namedDimension = new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*(${unit})?\\s*(${labels})\\b|\\b(${labels})\\s*(?:von|:|=)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(${unit})?`, "gi");
   for (const match of query.matchAll(namedDimension)) {
-    const label = match[3].toLowerCase();
-    const key = label.startsWith("breit") || label.startsWith("läng") || label.startsWith("lang") || label === "spannweite"
-      ? "width"
-      : label.startsWith("tief")
-        ? "depth"
+    const label = (match[3] ?? match[4]).toLowerCase();
+    const key = label.startsWith("tief") || label.startsWith("läng") || label.startsWith("lang")
+      ? "depth"
+      : label.startsWith("breit") || label === "spannweite"
+        ? "width"
         : "height";
-    const value = toCentimeters(match[1], match[2]);
+    const value = toCentimeters(match[1] ?? match[5], match[2] ?? match[6]);
     if (value !== null) dimensions[key] = value;
+  }
+  const stepCount = query.match(/\b(\d{1,2})\s*(?:stufen|steigungen)\b|\b(?:stufen|steigungen)\s*(?:anzahl|von|:)?\s*(\d{1,2})\b/i);
+  if (stepCount) {
+    const count = Number(stepCount[1] ?? stepCount[2]);
+    if (count >= 2 && count <= 40) dimensions.stepCount = count;
   }
   const pitch = query.match(/(\d+(?:[.,]\d+)?)\s*(?:°|grad)/i);
   if (pitch) {
@@ -339,6 +357,13 @@ function createSvgBuilder(query, type) {
     label(552, y2 + 5, text);
   };
   const dimension = (x1, y1, x2, y2, text, vertical = false) => {
+    if (vertical) {
+      line(x1 - 7, y1, x1 + 7, y1, "sketch-dimension-extension");
+      line(x2 - 7, y2, x2 + 7, y2, "sketch-dimension-extension");
+    } else {
+      line(x1, y1 - 7, x1, y1 + 7, "sketch-dimension-extension");
+      line(x2, y2 - 7, x2, y2 + 7, "sketch-dimension-extension");
+    }
     line(x1, y1, x2, y2, "sketch-dimension", {
       "marker-start": "url(#sketch-arrow)",
       "marker-end": "url(#sketch-arrow)",
@@ -355,11 +380,14 @@ function createSvgBuilder(query, type) {
 function drawRoofSketch(builder, dimensions) {
   const { add, line, rect, polygon, label, callout, dimension } = builder;
   const center = 285;
-  const eaveY = 255;
-  const rise = 170 * Math.tan(dimensions.pitch * Math.PI / 180);
-  const ridgeY = eaveY - Math.max(70, Math.min(180, rise));
-  const left = 105;
-  const right = 465;
+  const scale = Math.min(360 / dimensions.width, 220 / dimensions.height);
+  const halfSpan = dimensions.width * scale / 2;
+  const riseCm = dimensions.width / 2 * Math.tan(dimensions.pitch * Math.PI / 180);
+  const rise = riseCm * scale;
+  const ridgeY = 390 - dimensions.height * scale;
+  const eaveY = ridgeY + rise;
+  const left = center - halfSpan;
+  const right = center + halfSpan;
 
   label(105, 32, "QUERSCHNITT · KONZEPTDARSTELLUNG", "sketch-kicker");
   polygon(`${left},${eaveY} ${center},${ridgeY} ${right},${eaveY}`, "sketch-roof-fill");
@@ -374,9 +402,9 @@ function drawRoofSketch(builder, dimensions) {
   line(195, 168, 225, 181, "sketch-timber-line");
   line(345, 181, 375, 168, "sketch-timber-line");
   line(left + 6, eaveY + 20, right - 6, eaveY + 20, "sketch-timber-line");
-  line(210, 178, 225, eaveY + 17, "sketch-structure");
-  line(360, 178, 345, eaveY + 17, "sketch-structure");
-  line(200, 180, 370, 180, "sketch-timber-line");
+  line(left + halfSpan * 0.58, ridgeY + 30, left + halfSpan * 0.66, eaveY + 17, "sketch-structure");
+  line(right - halfSpan * 0.58, ridgeY + 30, right - halfSpan * 0.66, eaveY + 17, "sketch-structure");
+  line(center - halfSpan * 0.24, ridgeY + 34, center + halfSpan * 0.24, ridgeY + 34, "sketch-timber-line");
   line(left + 24, eaveY + 13, left + 24, 370, "sketch-structure");
   line(right - 24, eaveY + 13, right - 24, 370, "sketch-structure");
   rect(left - 20, 370, 76, 18, "sketch-hatched");
@@ -390,7 +418,8 @@ function drawRoofSketch(builder, dimensions) {
   callout("5", "Fußpfette / Auflager", right - 2, eaveY + 4, 243);
   callout("6", "Stütze / Wandauflager", right - 24, 325, 280);
   dimension(left, 426, right, 426, `Spannweite ${formatDimension(dimensions.width, true)}${dimensions.isExample.width ? " (B)" : ""}`);
-  dimension(66, ridgeY, 66, eaveY, `Firsthöhe ${formatDimension(dimensions.height, true)}${dimensions.isExample.height ? " (B)" : ""}`, true);
+  dimension(66, ridgeY, 66, 390, `Firsthöhe ${formatDimension(dimensions.height, true)}${dimensions.isExample.height ? " (B)" : ""}`, true);
+  label(518, 435, `Gebäudetiefe ${formatDimension(dimensions.depth, true)}${dimensions.isExample.depth ? " (B)" : ""}`, "sketch-dimension-text");
   const pitch = dimensions.pitch;
   label(left + 39, 234, `α ${pitch}°${dimensions.isExample.pitch ? " (B)" : ""}`, "sketch-dimension-text");
   line(left + 15, eaveY - 3, left + 70, eaveY - 3, "sketch-angle");
@@ -437,10 +466,33 @@ function drawGeneralSketch(builder, type, dimensions) {
     line(x + 20, y + h * 0.55, x + w - 20, y + h * 0.55, "sketch-structure");
     anchors.push([x + 20, y + 105], [x + 140, y + 150], [x + 230, y + 215], [x + w - 25, y + 245]);
   } else if (type.id === "stairs") {
-    const points = `${x + 35},${y + h - 15} ${x + 35},${y + h - 50} ${x + 90},${y + h - 50} ${x + 90},${y + h - 85} ${x + 145},${y + h - 85} ${x + 145},${y + h - 120} ${x + 200},${y + h - 120} ${x + 200},${y + h - 155} ${x + 255},${y + h - 155} ${x + 255},${y + 20}`;
-    add("polyline", { points, class: "sketch-stair" });
-    line(x + 24, y + h, x + 275, y + 15, "sketch-rafter");
-    anchors.push([x + 115, y + h - 86], [x + 175, y + h - 123], [x + 140, y + 185], [x + 40, y + h - 10]);
+    const risers = Math.max(2, dimensions.stepCount ?? 16);
+    const treads = risers - 1;
+    const run = 224 / treads;
+    const rise = (h - 38) / risers;
+    const startX = x + 28;
+    const baseY = y + h - 14;
+    const points = [`${startX},${baseY}`];
+    for (let index = 0; index < treads; index += 1) {
+      const stepX = startX + run * (index + 1);
+      const stepY = baseY - rise * index;
+      points.push(`${stepX},${stepY}`, `${stepX},${stepY - rise}`);
+    }
+    points.push(`${startX + 224},${baseY - rise * risers}`);
+    add("polyline", { points: points.join(" "), class: "sketch-stair" });
+    line(startX - 6, baseY + 4, startX + 230, baseY - rise * risers + 8, "sketch-rafter");
+    const railPoints = [];
+    for (let index = 0; index < treads; index += 1) {
+      const px = startX + run * (index + 0.55);
+      const py = baseY - rise * (index + 0.45);
+      line(px, py, px, py - 37, "sketch-structure");
+      railPoints.push(`${px},${py - 37}`);
+    }
+    line(startX + 8, baseY - 35, startX + 230, baseY - rise * risers - 28, "sketch-timber-line");
+    dimension(startX + 224, baseY, startX + 224, baseY - rise * risers, `Geschosshöhe ${formatDimension(dimensions.height)}`, true);
+    dimension(startX, 421, startX + 224, 421, `Lauflänge ${formatDimension(dimensions.stairLength)}`);
+    label(startX + 22, baseY - 48, `s ${formatDimension(dimensions.riserHeight)} · a ${formatDimension(dimensions.treadDepth)}`, "sketch-dimension-text");
+    anchors.push([startX + 85, baseY - rise * 4], [startX + 110, baseY - rise * 6], [startX + 168, baseY - rise * 11], [startX + 42, baseY - rise * 2]);
   } else if (type.id === "carport") {
     polygon(`${x + 20},${y + 65} ${x + w - 12},${y + 38} ${x + w - 2},${y + 58} ${x + 25},${y + 88}`, "sketch-roof-fill");
     line(x + 68, y + 83, x + 68, y + h, "sketch-structure");
@@ -482,10 +534,23 @@ function drawGeneralSketch(builder, type, dimensions) {
     line(x + 68, y + 216, x + w - 68, y + 216, "sketch-muted-line");
     anchors.push([x + w / 2, y + 120], [x + 88, y + 180], [x + w - 88, y + 180], [x + w / 2, y + 215]);
   } else {
-    rect(x + 65, y + 45, w - 130, h - 80, "sketch-fill");
-    line(x + 65, y + 110, x + w - 65, y + 110, "sketch-structure");
-    line(x + 165, y + 45, x + 165, y + h - 35, "sketch-muted-line");
-    anchors.push([x + 80, y + 50], [x + 165, y + 110], [x + 165, y + 160], [x + w - 72, y + h - 45]);
+    const left = x + 68;
+    const right = x + w - 78;
+    const top = y + 38;
+    const bottom = y + h - 55;
+    const offset = Math.max(22, Math.min(45, w * 0.14));
+    polygon(`${left},${bottom} ${right},${bottom} ${right + offset},${bottom - 20} ${left + offset},${bottom - 20}`, "sketch-hatched");
+    line(left, top, right, top, "sketch-structure");
+    line(left, top, left, bottom, "sketch-structure");
+    line(right, top, right, bottom, "sketch-structure");
+    line(left, top, left + offset, top - 20, "sketch-structure");
+    line(right, top, right + offset, top - 20, "sketch-structure");
+    line(left + offset, top - 20, right + offset, top - 20, "sketch-structure");
+    line(left + offset, top - 20, left + offset, bottom - 20, "sketch-structure");
+    line(right + offset, top - 20, right + offset, bottom - 20, "sketch-structure");
+    line(left, bottom - 20, right, top + 15, "sketch-timber-line");
+    line(left + offset, bottom - 38, right + offset, top - 2, "sketch-muted-line");
+    anchors.push([left + offset / 2, top], [right, top + 35], [left + offset, bottom - 40], [right + offset, bottom - 35]);
   }
 
   type.components.forEach((part, index) => {
@@ -493,9 +558,13 @@ function drawGeneralSketch(builder, type, dimensions) {
     const calloutY = 115 + index * 48;
     callout(String(index + 1), part, anchor[0], anchor[1], calloutY);
   });
-  dimension(x + 35, 405, x + w - 35, 405, `Breite ${formatDimension(dimensions.width)}${dimensions.isExample.width ? " (B)" : ""}`);
-  dimension(65, y + 24, 65, y + h - 12, `Höhe ${formatDimension(dimensions.height)}${dimensions.isExample.height ? " (B)" : ""}`, true);
-  label(95, 450, `Tiefe ${formatDimension(dimensions.depth)}${dimensions.isExample.depth ? " (B)" : ""} · schematisch nicht perspektivisch bemaßt`, "sketch-dimension-text");
+  if (type.id !== "stairs") {
+    dimension(x + 35, 405, x + w - 35, 405, `Breite ${formatDimension(dimensions.width)}${dimensions.isExample.width ? " (B)" : ""}`);
+    dimension(65, y + 24, 65, y + h - 12, `Höhe ${formatDimension(dimensions.height)}${dimensions.isExample.height ? " (B)" : ""}`, true);
+  }
+  label(95, 450, type.id === "stairs"
+    ? `Schrittmaß: 2 × ${formatDimension(dimensions.riserHeight)} + ${formatDimension(dimensions.treadDepth)} = ${formatDimension(2 * dimensions.riserHeight + dimensions.treadDepth)} · DIN-Orientierung 59–65 cm`
+    : `Tiefe ${formatDimension(dimensions.depth)}${dimensions.isExample.depth ? " (B)" : ""} · schematisch nicht perspektivisch bemaßt`, "sketch-dimension-text");
 }
 
 function createSketch(type, dimensions, query) {
@@ -513,9 +582,93 @@ function dimensionLine(key, labelText, dimension, defaultValue) {
   return `${labelText}: ${isExample ? "ca. " : ""}${formatDimension(value, dimension.roof)}${isExample ? " (Beispiel)" : ""}`;
 }
 
+function materialGuidance(type, dimensions) {
+  const guidance = {
+    roof: [
+      "KVH/BSH · Sparren beispielhaft 8 × 18 cm; statisch nachweisen",
+      "BSH · Firstpfette; Querschnitt statisch bemessen",
+      "KVH/BSH · Mittelpfetten; Querschnitt statisch bemessen",
+      "KVH · Kehlbalken; Anschlüsse nachweisen",
+      "KVH/BSH · Fußpfetten; Auflager und Feuchteschutz planen",
+      "Holzstützen/Wandauflager · Lastabtragung und Verbindungen nachweisen",
+    ],
+    carport: [
+      "Dachdeckung passend zum System · Entwässerungsgefälle projektbezogen planen",
+      "BSH/KVH · Querschnitt nach Spannweite und Last bemessen",
+      "BSH/KVH · Pfosten beispielhaft 12 × 12 cm; Statik prüfen",
+      "Betonfundamente und zugelassene Pfostenträger; Bemessung erforderlich",
+    ],
+    stairs: [
+      `Massivholz · Auftritt ca. ${formatDimension(dimensions.treadDepth)} als Rechenrichtwert`,
+      `Holz/Plattenwerkstoff · Setzstufen passend zur Steigung ${formatDimension(dimensions.riserHeight)}`,
+      "Konstruktionsholz · Wangenquerschnitt statisch und geometrisch bemessen",
+      "Holz/Metall · Handlauf und Geländer nach Nutzung und Bauanforderung",
+    ],
+    table: [
+      "Massivholz/Plattenwerkstoff · Platte ca. 2,5–4 cm",
+      "Massivholz · Zargen passend zu Plattenstärke und Spannweite",
+      "Massivholz · Beine beispielhaft ca. 6 × 6 cm",
+      "Schrauben/Dübel/Beschläge passend zu Holzart und Verbindung",
+    ],
+    shelf: [
+      "Massivholz/Plattenwerkstoff · Seitenteile nach Höhe und Nutzlast",
+      "Plattenwerkstoff · Böden beispielhaft 18–25 mm; Durchbiegung prüfen",
+      "Plattenwerkstoff · Rückwand oder konstruktive Aussteifung",
+      "Wandanker passend zu Wandbaustoff und Last",
+    ],
+    cabinet: [
+      "Massivholz/Plattenwerkstoff · Korpusplatten passend zu Nutzung",
+      "Plattenwerkstoff · Böden nach Spannweite und Nutzlast bemessen",
+      "Massivholz/Plattenwerkstoff · Türen mit passenden Topfbändern",
+      "Plattenwerkstoff · Rückwand konstruktiv befestigen",
+    ],
+    chair: [
+      "Massivholz/Multiplex · Sitzfläche nach Belastung dimensionieren",
+      "Massivholz · Beine und Verbindungen auf dynamische Last auslegen",
+      "Massivholz/Multiplex · Rückenlehne sicher mit Rahmen verbinden",
+      "Massivholz · Querstreben gegen seitliches Wackeln",
+    ],
+    wall: [
+      "Beplankung nach Brandschutz-, Schall- und Feuchteanforderung auswählen",
+      "Konstruktionsholz/Metallständer · Profil und Abstand projektbezogen",
+      "Riegel passend zu Öffnungen und Lasten",
+      "Befestigung passend zu Boden- und Deckenuntergrund",
+    ],
+    bed: [
+      "Massivholz/Plattenwerkstoff · Seitenteile nach Bettmaß",
+      "Massivholz · Kopf- und Fußteil konstruktiv verbinden",
+      "Konstruktionsholz · Mittelträger mit ausreichender Stützung",
+      "Massivholz · Auflageleisten gleichmäßig befestigen",
+    ],
+    gardenhouse: [
+      "Holzschalung / Plattenwerkstoff · Witterungsschutz berücksichtigen",
+      "KVH · Pfosten und Wandrahmen statisch nachweisen",
+      "KVH/BSH · Dachtragwerk und Dachdeckung projektspezifisch",
+      "Holz / Beschläge · Türöffnung konstruktiv aussteifen",
+      "Fundament entsprechend Boden und Lasten planen",
+    ],
+    fence: [
+      "Witterungsbeständiges Holz / Metall · Füllung mit sicheren Kanten",
+      "KVH · Querholme nach Feldbreite bemessen",
+      "KVH/Metall · Pfosten nach Höhe und Windbeanspruchung",
+      "Beton / zugelassene Pfostenträger · Untergrund prüfen",
+    ],
+    beam: [
+      "KVH/BSH · Querschnitt und Holzsortierung statisch bemessen",
+      "Auflager passend zu Last, Untergrund und Anschluss",
+      "Auflager passend zu Last, Untergrund und Anschluss",
+      "Zugelassene Verbindungsmittel · Randabstände und Herstellerangaben beachten",
+    ],
+  };
+  return guidance[type.id] ?? type.components.map(() => (
+    "Material und Dimensionierung passend zu Nutzung und Belastung fachlich festlegen"
+  ));
+}
+
 function renderBuildHelp(query) {
   const sketchType = detectSketchType(query);
-  if (!isBuildRequest(query) && selectedSearchType !== "build") {
+  const repairRequest = detectRepairRequest(query);
+  if (!isBuildRequest(query) && selectedSearchType !== "build" && !repairRequest) {
     buildHelp.hidden = true;
     return;
   }
@@ -529,13 +682,26 @@ function renderBuildHelp(query) {
   };
   const notes = [
     dimensionLine("width", type.id === "roof" ? "Spannweite" : "Breite", dimensions, type.defaults.width),
-    dimensionLine("height", type.id === "roof" ? "Firsthöhe" : "Höhe", dimensions, type.defaults.height),
+    dimensionLine("height", type.id === "roof" ? "Firsthöhe" : type.id === "stairs" ? "Geschosshöhe" : "Höhe", dimensions, type.defaults.height),
     dimensionLine("depth", type.id === "roof" ? "Gebäudetiefe" : "Tiefe", dimensions, type.defaults.depth),
   ];
+  if (type.id === "stairs") {
+    const requestedHeight = dimensions.height;
+    const riserCount = dimensions.stepCount ?? Math.max(2, Math.round(requestedHeight / 17.5));
+    const rise = requestedHeight / riserCount;
+    const tread = Math.max(0, 63 - 2 * rise);
+    dimensions.stepCount = riserCount;
+    dimensions.riserHeight = rise;
+    dimensions.treadDepth = tread;
+    dimensions.stairLength = tread * (riserCount - 1);
+    if (parsed.depth === undefined) dimensions.depth = dimensions.stairLength;
+    notes[2] = `Lauflänge: ${formatDimension(dimensions.stairLength)} (${riserCount - 1} Auftritte)`;
+    notes.push(`Treppenrichtwert: ${riserCount} Steigungen à ${formatDimension(rise)} · Auftritt ${formatDimension(tread)} · Schrittmaß 2s + a = ${formatDimension(2 * rise + tread)}${2 * rise + tread < 59 || 2 * rise + tread > 65 ? " (außerhalb des üblichen Orientierungsbereichs 59–65 cm)" : ""}`);
+  }
   if (type.id === "roof") {
     const pitchIsExample = dimensions.pitch === undefined;
     if (pitchIsExample && (parsed.width || parsed.height)) {
-      dimensions.pitch = Math.round(Math.atan(dimensions.height / (dimensions.width / 2)) * 180 / Math.PI);
+      dimensions.pitch = Math.round(Math.atan(Math.max(1, dimensions.height - 250) / (dimensions.width / 2)) * 180 / Math.PI);
       dimensions.isExample.pitch = false;
       notes.push(`Dachneigung: ca. ${dimensions.pitch}° (aus den angegebenen Maßen abgeleitet)`);
     } else {
@@ -543,42 +709,118 @@ function renderBuildHelp(query) {
       dimensions.isExample.pitch = pitchIsExample;
       notes.push(`Dachneigung: ${pitchIsExample ? "ca. " : ""}${dimensions.pitch}°${pitchIsExample ? " (Beispiel)" : ""}`);
     }
+    if (dimensions.pitch < 5 || dimensions.pitch > 80) {
+      notes.push("Hinweis: Dachneigung außerhalb des dargestellten Modellbereichs (5–80°); fachlich prüfen.");
+      dimensions.pitch = Math.max(5, Math.min(80, dimensions.pitch));
+    }
   }
-  buildSummary.textContent = `${type.title}. Die Maße sind Richtwerte zur Veranschaulichung und ersetzen keine Fachplanung.`;
-  buildDimensionNote.textContent = `${notes.join(" · ")} · (B) = Standard-Richtwert (Beispielmaß).`;
-  sketchContainer.replaceChildren(createSketch(type, dimensions, query));
-  buildStepsTitle.textContent = type.isStructural ? "Planungshinweise" : "Konstruktionshinweise";
+  const repairGuides = [
+    {
+      pattern: /\b(verputz\w*|putz\w*)\b/i,
+      tools: ["Maurerkelle", "Glättkelle", "Rührwerk mit geeignetem Rührquirl", "Abdeckfolie", "Schutzbrille und Handschuhe"],
+      safety: "Putzart und Untergrund müssen zusammenpassen. Staub vermeiden, gut lüften und Produkt-Sicherheitsdatenblatt beachten. Bei Schimmel, Schadstoffen, losen tragenden Schichten oder unbekanntem Altputz Arbeit unterbrechen und Fachberatung einholen.",
+      steps: ["Untergrund auf Festigkeit, Sauberkeit, Feuchte und Verträglichkeit prüfen; lose Teile nur sicher entfernen.", "Flächen und angrenzende Bauteile schützen; Grundierung und Putzsystem nach Herstellerangaben wählen.", "Putz exakt nach Sackangabe anmischen und in geeigneter Schichtdicke auftragen.", "Oberfläche im vorgeschriebenen Zeitfenster bearbeiten und nach Herstellerangabe trocknen lassen."],
+    },
+    {
+      pattern: /\b(spülkasten|toilette|wc|wasserhahn|armatur|wasserrohr|undicht|tropft)\b/i,
+      tools: ["Taschenlampe", "Handschuhe", "passender Schraubendreher", "Tuch und Auffangbehälter"],
+      safety: "Wasserzufuhr am Eckventil schließen, Druck ablassen und austretendes Wasser auffangen. Bei unklarer Absperrung, verdecktem Leck oder anhaltendem Wasseraustritt Installationsfachbetrieb rufen.",
+      steps: ["Fehlerbild und betroffene Armatur lokalisieren; nichts unter Druck öffnen.", "Wasserzufuhr absperren und Dichtheit der Absperrung kontrollieren.", "Nur zugängliche, eindeutig identifizierte Verschleißteile nach Herstelleranleitung prüfen.", "Nach Arbeiten langsam öffnen und alle Verbindungen auf Dichtheit kontrollieren; bei Leck sofort wieder absperren."],
+    },
+    {
+      pattern: /\b(lichtschalter|steckdose|sicherung|elektr\w*|strom|kabel)\b/i,
+      tools: ["Zweipoliger Spannungsprüfer (nur durch unterwiesene Personen)", "isoliertes Werkzeug (nur Elektrofachkraft)", "Herstellerunterlagen"],
+      safety: "Elektrische Arbeiten können lebensgefährlich sein. Stromkreis freischalten, gegen Wiedereinschalten sichern und Spannungsfreiheit fachgerecht feststellen lassen. Fest installierte elektrische Anlagen nur durch eine Elektrofachkraft bearbeiten lassen.",
+      steps: ["Bei Klemmen, Wärme, Geruch oder Funken den Stromkreis nicht weiter benutzen und freischalten lassen.", "Keine Abdeckung öffnen und keine Leiter berühren, wenn Qualifikation oder Spannungsfreiheit unklar sind.", "Fehlerbild, betroffenen Stromkreis und vorhandene Kennzeichnungen notieren.", "Elektrofachkraft mit Prüfung und Reparatur beauftragen; nach der Reparatur Schutzfunktion prüfen lassen."],
+    },
+    {
+      pattern: /.*/,
+      tools: ["Herstellerunterlagen", "Taschenlampe", "passendes Handwerkzeug", "Schutzhandschuhe"],
+      safety: "Vor Reparatur Energiequellen sicher trennen (Strom, Wasser, Gas oder Druck je nach Gerät). Bei Gasgeruch, Brandgefahr, unklarer Ursache oder tragenden Bauteilen Arbeit abbrechen und Fachbetrieb verständigen.",
+      steps: ["Fehlerbild und Produkt-/Modellnummer erfassen; Herstellerhinweise und Garantiebedingungen prüfen.", "Anlage sichern und passende Energiezufuhr abstellen, bevor Abdeckungen oder Bauteile geöffnet werden.", "Nur eindeutig identifizierte und für Laien freigegebene Prüfschritte ausführen.", "Nach dem Eingriff Funktion und Dichtheit prüfen; bei Unsicherheit oder erneutem Fehler Fachbetrieb beauftragen."],
+    },
+  ];
+  const repairGuide = repairRequest ? repairGuides.find((guide) => guide.pattern.test(query)) : null;
+  buildSummary.textContent = repairGuide
+    ? "Reparatur-Orientierung für die Suche. Die Schritte sind allgemeine Hinweise und keine Diagnose des konkreten Produkts."
+    : `${type.title}. Maße sind illustrative Richtwerte und ersetzen keine Fachplanung.`;
+  const safetyMessage = repairGuide?.safety ?? (type.isStructural
+    ? "Tragende Bauteile, Verbindungen, Auflager, Lasten und Fundamente sind nicht statisch geprüft. Vor Ausführung projektbezogen durch qualifizierte Fachleute bemessen lassen."
+    : "");
+  buildSafety.hidden = !safetyMessage;
+  buildSafety.textContent = safetyMessage;
+  buildTools.replaceChildren();
+  (repairGuide?.tools ?? (type.id === "stairs"
+    ? ["Bandmaß und Winkel", "Wasserwaage", "Kappsäge", "Bohrmaschine / Schrauber", "Persönliche Schutzausrüstung"]
+    : ["Bandmaß", "Wasserwaage", "Winkel", "passendes Säge- und Montagewerkzeug", "Persönliche Schutzausrüstung"])).forEach((tool) => {
+    const item = document.createElement("li");
+    item.textContent = tool;
+    buildTools.append(item);
+  });
+  const materialNotes = materialGuidance(type, dimensions);
+  buildMaterials.replaceChildren();
+  type.components.forEach((part, index) => {
+    const item = document.createElement("li");
+    item.textContent = `${part} — ${materialNotes[index] ?? "Material/Querschnitt projektspezifisch festlegen"}`;
+    buildMaterials.append(item);
+  });
+  sketchBadge.textContent = repairGuide
+    ? "REPARATUR-ORIENTIERUNG · PRODUKTHANDBUCH BEACHTEN"
+    : type.id === "stairs"
+      ? "SCHRITTMASS-ORIENTIERUNG · DIN 18065"
+      : type.id === "roof" || type.id === "carport"
+        ? "HOLZBAU-RICHTMASS · STATIK PROJEKTBEZOGEN PRÜFEN"
+        : "RICHTMASS · NICHT STATISCH GEPRÜFT";
+  document.querySelector(".cad-toolbar").hidden = Boolean(repairGuide);
+  document.querySelector("#viewer-shell").hidden = Boolean(repairGuide);
+  document.querySelector(".sketch-caption").hidden = Boolean(repairGuide);
+  buildPartsTitle.textContent = repairGuide ? "Prüf- und Arbeitsschritte" : "Bauteile in der Skizze";
+  buildMaterialsTitle.textContent = repairGuide ? "Werkzeugübersicht" : "Material- / Bauteilübersicht";
+  buildMaterialsTitle.hidden = Boolean(repairGuide);
+  buildMaterials.hidden = Boolean(repairGuide);
+  buildToolsTitle.hidden = false;
+  buildTools.hidden = false;
+  buildPartsTitle.hidden = Boolean(repairGuide);
+  buildParts.hidden = Boolean(repairGuide);
+  buildStepsTitle.textContent = repairGuide ? "Sichere Prüfschritte" : type.isStructural ? "Planungshinweise" : "Konstruktionshinweise";
+  buildDimensionNote.textContent = repairGuide
+    ? "Vor Arbeitsbeginn passende Energiezufuhr absperren; Hersteller- und Fachhinweise haben Vorrang."
+    : `${notes.join(" · ")} · (B) = Standard-Richtwert (Beispielmaß).`;
+  if (!repairGuide) sketchContainer.replaceChildren(createSketch(type, dimensions, query));
   buildSteps.replaceChildren();
-  (type.steps ?? []).forEach((step) => {
+  (repairGuide?.steps ?? type.steps ?? []).forEach((step) => {
     const item = document.createElement("li");
     item.textContent = step;
     buildSteps.append(item);
   });
   buildParts.replaceChildren();
-  type.components.forEach((part) => {
+  (repairGuide ? repairGuide.steps : type.components).forEach((part) => {
     const item = document.createElement("li");
     item.textContent = part;
     buildParts.append(item);
   });
-  buildMaterials.replaceChildren();
-  type.components.forEach((part) => {
-    const item = document.createElement("li");
-    item.textContent = `${part} · Material und Querschnitt projektspezifisch festlegen`;
-    buildMaterials.append(item);
-  });
   buildSummary.setAttribute("aria-label", `${query}. ${buildDimensionNote.textContent}`);
+  buildNote.textContent = repairGuide
+    ? "Allgemeine Orientierung, keine Produktdiagnose. Bei elektrischen Arbeiten, Gas, verdeckten Lecks oder Unsicherheit Fachbetrieb beauftragen."
+    : "Konzeptskizze, kein Werk- oder Statikplan. Beispielmaße und Bauteilvorschläge sind nicht ausführungsreif. Tragende Bauteile, Verbindungen, Fundamente, Lasten und Genehmigungen müssen qualifizierte Fachleute projektbezogen prüfen.";
   buildHelp.hidden = false;
-  window.dispatchEvent(new CustomEvent("werkfinder:cad-model", {
-    detail: {
+  if (!repairGuide) {
+    const cadModel = {
       type: type.id,
       title: type.title,
       width: dimensions.width,
       height: dimensions.height,
       depth: dimensions.depth,
       pitch: dimensions.pitch ?? type.defaults.pitch ?? 0,
+      stepCount: dimensions.stepCount,
+      riserHeight: dimensions.riserHeight,
+      treadDepth: dimensions.treadDepth,
+      stairLength: dimensions.stairLength,
       components: type.components,
-    },
-  }));
+    };
+    window.werkfinderCadModel = cadModel;
+    window.dispatchEvent(new CustomEvent("werkfinder:cad-model", { detail: cadModel }));
+  }
 }
 
 form.addEventListener("submit", (event) => {

@@ -104,10 +104,11 @@
               <div class="eyebrow"><span class="eyebrow-line"></span> DEIN ENTWURF</div>
               <h2 id="build-title">Bauidee &amp; Skizze</h2>
             </div>
-            <span class="sketch-badge">KONZEPT · NICHT STATISCH GEPRÜFT</span>
+            <span id="sketch-badge" class="sketch-badge">RICHTMASS · NICHT STATISCH GEPRÜFT</span>
           </div>
           <p id="build-summary" class="build-summary"></p>
           <p id="build-dimension-note" class="dimension-note"></p>
+          <p id="build-safety" class="build-safety" hidden></p>
           <div class="cad-toolbar">
             <div class="cad-view-tabs" role="group" aria-label="CAD-Ansicht wählen">
               <button class="cad-view-button is-selected" type="button" data-view-mode="3d" aria-pressed="true">3D Freie Ansicht</button>
@@ -125,19 +126,22 @@
                 <div class="viewer-legend"><span>Orbit: ziehen</span><span>Zoom: scrollen</span><span>Verschieben: rechte Maustaste</span></div>
               </div>
               <div id="sketch-container" class="sketch-frame blueprint-viewport" hidden></div>
+              <button id="viewer-exit-fullscreen" class="viewer-exit-fullscreen" type="button" hidden>Ansicht schließen ×</button>
               <p id="viewer-status" class="viewer-status" role="status" hidden>3D-Ansicht wird vorbereitet …</p>
               <p class="sketch-caption">Objektspezifisches Schema · Maße teilweise Beispiel-Richtwerte</p>
             </div>
             <div class="build-steps-panel">
-              <h3>Bauteile in der Skizze</h3>
+              <h3 id="build-parts-title">Bauteile in der Skizze</h3>
               <ol id="build-parts"></ol>
-              <h3>Material- / Bauteilübersicht</h3>
-              <ol id="build-materials"></ol>
+              <h3 id="build-materials-title">Material- / Bauteilübersicht</h3>
+              <ol id="build-materials" class="build-materials"></ol>
+              <h3 id="build-tools-title">Werkzeuge</h3>
+              <ul id="build-tools" class="build-tools"></ul>
               <h3 id="build-steps-title">Planungshinweise</h3>
               <ol id="build-steps"></ol>
             </div>
           </div>
-          <p class="build-note">Konzeptskizze, kein Werk- oder Statikplan. Beispiele und allgemeine Maße sind nicht ausführungsreif. Tragende Bauteile, Verbindungen, Fundamente, Lasten und Genehmigungen müssen qualifizierte Fachleute projektbezogen prüfen.</p>
+          <p id="build-note" class="build-note">Konzeptskizze, kein Werk- oder Statikplan. Beispiele und allgemeine Maße sind nicht ausführungsreif. Tragende Bauteile, Verbindungen, Fundamente, Lasten und Genehmigungen müssen qualifizierte Fachleute projektbezogen prüfen.</p>
         </section>
         <div id="result-grid" class="result-grid"></div>
         <p class="results-note"><span aria-hidden="true">↗</span> Die Links öffnen aktuelle Suchergebnisse bei Google oder YouTube. Ein exakter Treffer hängt von Produktname und Modellnummer ab. Prüfe vor der Arbeit immer Herstellerangaben und Sicherheitsregeln.</p>

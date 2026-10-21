@@ -117,6 +117,8 @@ h1 > span { color: var(--green); }
 .cad-view-button:hover, .viewer-fullscreen:hover { border-color: var(--green); }
 .cad-view-button.is-selected { border-color: var(--green); background: #eaf1e8; color: var(--green); }
 .viewer-fullscreen { flex: none; }
+.viewer-exit-fullscreen { position: absolute; z-index: 3; top: 18px; right: 18px; min-height: 38px; padding: 8px 12px; border: 1px solid #5c7883; border-radius: 3px; background: #101e29ed; color: #e1edf1; font: 600 12px "DM Sans", sans-serif; cursor: pointer; }
+.viewer-exit-fullscreen:hover { border-color: #8ac6db; }
 .build-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(250px, .9fr); gap: 18px; }
 .sketch-frame, .build-steps-panel { min-width: 0; padding: 16px; border: 1px solid #e4e8e1; border-radius: 3px; background: var(--white); }
 .sketch-frame { overflow: hidden; background-color: #101e29; background-image: linear-gradient(#29404b55 1px, transparent 1px), linear-gradient(90deg, #29404b55 1px, transparent 1px); background-size: 18px 18px; border-color: #293e4d; }
@@ -130,6 +132,7 @@ h1 > span { color: var(--green); }
 .blueprint-viewport { padding: 16px; }
 .sketch-caption { margin: 8px 2px 0; color: var(--muted); font-size: 10px; }
 .technical-sketch { display: block; width: 100%; height: auto; min-height: 240px; max-height: 480px; }
+.technical-sketch { shape-rendering: geometricPrecision; text-rendering: geometricPrecision; }
 .technical-sketch text { font-family: "DM Sans", sans-serif; }
 .sketch-structure, .sketch-rafter, .sketch-timber-line, .sketch-leader { fill: none; stroke: #8ac6db; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .sketch-rafter { stroke: #ecb865; stroke-width: 8; }
@@ -148,6 +151,7 @@ h1 > span { color: var(--green); }
 .sketch-number-text, .sketch-part-label, .sketch-dimension-text, .sketch-kicker { fill: #e1edf1; font-size: 12px; }
 .sketch-number-text { fill: #ffe0a0; font-size: 11px; font-weight: 700; }
 .sketch-dimension, .sketch-angle { fill: none; stroke: #72c4d5; stroke-width: 1.4; }
+.sketch-dimension-extension { fill: none; stroke: #72c4d5; stroke-width: 1; }
 .sketch-arrow { fill: #72c4d5; }
 .sketch-dimension-text { fill: #8dd6e2; font-size: 12px; }
 .sketch-kicker { fill: #7fa7b8; font-size: 10px; letter-spacing: 1.2px; }
@@ -158,11 +162,17 @@ h1 > span { color: var(--green); }
 .build-steps-panel li + li { margin-top: 8px; }
 .build-steps-panel ol + h3 { margin-top: 22px; }
 .build-note { margin: 14px 0 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
+.build-safety { margin: 10px 0 14px; padding: 11px 13px; border: 1px solid #8b554e; border-left: 4px solid #dd846e; border-radius: 3px; background: #301f22; color: #ffd7cd; font-size: 12px; line-height: 1.6; }
+.build-safety[hidden] { display: none; }
+.build-materials li { font-weight: 600; }
+.build-tools { margin: 0; padding-left: 20px; }
+.build-steps-panel ul li { padding-left: 3px; color: var(--muted); font-size: 11px; line-height: 1.55; }
 .dimension-note { max-width: 100%; line-height: 1.65; overflow-wrap: anywhere; }
 #viewer-shell:fullscreen { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 10px; padding: 18px; background: #101e29; }
 #viewer-shell:fullscreen .three-viewport { height: 100%; min-height: 0; }
 #viewer-shell:fullscreen .blueprint-viewport { max-height: calc(100vh - 70px); overflow: auto; }
 #viewer-shell:fullscreen .technical-sketch { max-height: calc(100vh - 110px); }
+#viewer-shell:fullscreen .sketch-caption { color: #b5cbd2; }
 body[data-theme="abend"] .cad-view-button,
 body[data-theme="abend"] .viewer-fullscreen { border-color: var(--line); background: var(--white); color: var(--ink); }
 body[data-theme="abend"] .cad-view-button.is-selected { background: #24372d; color: #b0ddc0; }

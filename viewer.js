@@ -5,17 +5,23 @@ const status = document.querySelector("#viewer-status");
 const shell = document.querySelector("#viewer-shell");
 const modeButtons = [...document.querySelectorAll("[data-view-mode]")];
 const fullscreenButton = document.querySelector("#viewer-fullscreen");
+const exitFullscreenButton = document.querySelector("#viewer-exit-fullscreen");
 
 let three;
+let OrbitControlsClass;
 let scene;
 let camera;
+let perspectiveCamera;
+let orthographicCamera;
 let renderer;
 let controls;
 let modelGroup;
+let modelBounds;
 let currentModel;
 let currentMode = "3d";
 let animationFrame;
 let isReady = false;
+let loadFailureMessage;
 
 function showBlueprint(message) {
   viewport.hidden = true;
@@ -71,7 +77,20 @@ function addBox(group, x, y, z, width, depth, height, material) {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   group.add(mesh);
+  addEdgeOverlay(mesh);
   return mesh;
+}
+
+function addEdgeOverlay(mesh) {
+  const edges = new three.EdgesGeometry(mesh.geometry, 24);
+  const lines = new three.LineSegments(edges, new three.LineBasicMaterial({
+    color: 0x18303c,
+    transparent: true,
+    opacity: 0.88,
+    depthWrite: false,
+  }));
+  lines.renderOrder = 2;
+  mesh.add(lines);
 }
 
 function addBeam(group, start, end, thickness, material, width = thickness) {
@@ -89,12 +108,13 @@ function addBeam(group, start, end, thickness, material, width = thickness) {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   group.add(mesh);
+  addEdgeOverlay(mesh);
 }
 
 function addRoof(group, dims, timber, panel) {
   const halfWidth = dims.width / 2;
   const halfDepth = dims.depth / 2;
-  const pitch = Math.max(15, Math.min(60, Number(currentModel.pitch) || 35)) * Math.PI / 180;
+  const pitch = Math.max(5, Math.min(80, Number(currentModel.pitch) || 35)) * Math.PI / 180;
   const rise = halfWidth * Math.tan(pitch);
   const eaves = Math.max(1.8, dims.height - rise);
   const ridge = eaves + rise;
@@ -127,22 +147,44 @@ function addCarport(group, dims, timber, panel) {
   const hx = dims.width / 2;
   const hy = dims.depth / 2;
   const roofHeight = Math.max(2, dims.height);
+  const roofSlope = dims.depth * 0.015;
+  const roofAt = (y) => roofHeight + (-y / dims.depth) * roofSlope;
   [-hx + 0.15, hx - 0.15].forEach((x) => {
-    [-hy + 0.15, hy - 0.15].forEach((y) => addBox(group, x, y, roofHeight / 2, 0.16, 0.16, roofHeight, timber));
+    [-hy + 0.15, hy - 0.15].forEach((y) => {
+      const postTop = roofAt(y) - 0.08;
+      addBox(group, x, y, postTop / 2, 0.12, 0.12, postTop, timber);
+      const braceDirection = x < 0 ? 1 : -1;
+      addBeam(
+        group,
+        [x, y, postTop - 0.55],
+        [x + braceDirection * 0.55, y, postTop - 0.02],
+        0.09,
+        timber,
+      );
+    });
   });
-  addBeam(group, [-hx, -hy, roofHeight], [hx, -hy, roofHeight], 0.18, timber, 0.18);
-  addBeam(group, [-hx, hy, roofHeight], [hx, hy, roofHeight], 0.18, timber, 0.18);
-  addBeam(group, [-hx, -hy, roofHeight], [-hx, hy, roofHeight], 0.15, timber, 0.15);
-  addBeam(group, [hx, -hy, roofHeight], [hx, hy, roofHeight], 0.15, timber, 0.15);
-  addBox(group, 0, 0, roofHeight + 0.08, dims.width, dims.depth, 0.16, panel);
+  [-hy, hy].forEach((y) => addBeam(group, [-hx, y, roofAt(y)], [hx, y, roofAt(y)], 0.16, timber, 0.18));
+  [-hx, hx].forEach((x) => {
+    addBeam(group, [x, -hy, roofAt(-hy)], [x, hy, roofAt(hy)], 0.14, timber, 0.16);
+  });
+  const roof = new three.Mesh(
+    new three.PlaneGeometry(dims.width, dims.depth),
+    createMaterial(0x78b6c8, { side: three.DoubleSide, metalness: 0.22, roughness: 0.48 }),
+  );
+  roof.position.z = roofHeight;
+  roof.rotation.x = -Math.atan(roofSlope / dims.depth);
+  roof.receiveShadow = true;
+  group.add(roof);
+  addEdgeOverlay(roof);
 }
 
 function addTable(group, dims, timber, panel, isChair = false) {
   const topHeight = isChair ? dims.height * 0.52 : dims.height;
-  const topWidth = isChair ? dims.width : dims.width;
+  const topWidth = dims.width;
   const topDepth = dims.depth;
-  addBox(group, 0, 0, topHeight, topWidth, topDepth, 0.08, panel);
-  const legHeight = Math.max(0.25, topHeight - 0.04);
+  const slabThickness = isChair ? 0.045 : 0.03;
+  addBox(group, 0, 0, topHeight - slabThickness / 2, topWidth, topDepth, slabThickness, panel);
+  const legHeight = Math.max(0.25, topHeight - slabThickness);
   const legWidth = Math.max(0.045, Math.min(0.1, topWidth * 0.07));
   [-1, 1].forEach((xSign) => [-1, 1].forEach((ySign) => {
     addBox(group, xSign * (topWidth / 2 - legWidth), ySign * (topDepth / 2 - legWidth), legHeight / 2, legWidth, legWidth, legHeight, timber);
@@ -174,17 +216,35 @@ function addShelving(group, dims, timber, panel, cabinet = false) {
   }
 }
 
-function addStairs(group, dims, timber, panel) {
-  const count = Math.max(5, Math.min(18, Math.round(dims.height / 0.18)));
-  const rise = dims.height / count;
-  const run = dims.depth / count;
-  for (let index = 0; index < count; index += 1) {
-    const z = rise * (index + 0.5);
-    const y = -dims.depth / 2 + run * (index + 0.5);
-    addBox(group, 0, y, z, dims.width, run * 1.04, Math.max(0.035, rise * 0.18), panel);
+function addStairs(group, dims, model, timber, panel) {
+  const count = Math.max(2, Math.min(40, Math.round(model.stepCount) || Math.round(dims.height / 0.175)));
+  const riser = Math.max(0.05, Math.min(0.3, Number(model.riserHeight) / 100 || dims.height / count));
+  const tread = Math.max(0.15, Math.min(0.5, Number(model.treadDepth) / 100 || Math.max(0.15, (0.63 - 2 * riser))));
+  const run = Math.max(tread, Number(model.stairLength) / 100 || tread * (count - 1));
+  const treadThickness = Math.max(0.035, Math.min(0.06, riser * 0.22));
+  const treadRun = run / (count - 1);
+  const startY = -run / 2;
+  for (let index = 0; index < count - 1; index += 1) {
+    const y = startY + (index + 0.5) * treadRun;
+    const top = (index + 1) * (dims.height / count);
+    addBox(group, 0, y, top - treadThickness / 2, dims.width, treadRun * 0.98, treadThickness, panel);
+    const riserDepth = Math.max(0.035, Math.min(0.07, treadThickness));
+    addBox(group, 0, startY + (index + 1) * treadRun, top - dims.height / count / 2, dims.width, riserDepth, dims.height / count, timber);
   }
-  [-dims.width * 0.43, dims.width * 0.43].forEach((x) => {
-    addBeam(group, [x, -dims.depth / 2, 0], [x, dims.depth / 2, dims.height], 0.1, timber);
+  const stringerX = dims.width * 0.43;
+  const handrailHeight = Math.min(1, Math.max(0.85, dims.height * 0.34));
+  [-stringerX, stringerX].forEach((x) => {
+    addBeam(group, [x, startY, 0.04], [x, -startY, dims.height], 0.12, timber);
+    const railStart = [x, startY, handrailHeight];
+    const railEnd = [x, -startY, dims.height + handrailHeight];
+    addBeam(group, railStart, railEnd, 0.065, timber, 0.065);
+    const postCount = Math.max(3, Math.min(8, Math.ceil(run / 0.75) + 1));
+    for (let index = 0; index < postCount; index += 1) {
+      const fraction = index / (postCount - 1);
+      const y = startY + fraction * run;
+      const stairZ = fraction * dims.height;
+      addBox(group, x, y, stairZ + handrailHeight / 2, 0.055, 0.055, handrailHeight, timber);
+    }
   });
 }
 
@@ -262,12 +322,21 @@ function addBeamModel(group, dims, timber) {
 }
 
 function addGeneric(group, dims, timber, panel) {
-  const edges = new three.EdgesGeometry(new three.BoxGeometry(dims.width, dims.depth, dims.height));
-  const wire = new three.LineSegments(edges, new three.LineBasicMaterial({ color: 0x8ac6db }));
-  wire.position.z = dims.height / 2;
-  group.add(wire);
-  addBox(group, 0, 0, 0.035, dims.width, dims.depth, 0.07, panel);
-  addBeam(group, [-dims.width / 2, -dims.depth / 2, 0.1], [dims.width / 2, dims.depth / 2, dims.height * 0.9], 0.045, timber);
+  const post = Math.max(0.04, Math.min(0.14, Math.min(dims.width, dims.depth) * 0.08));
+  const halfWidth = dims.width / 2;
+  const halfDepth = dims.depth / 2;
+  addBox(group, 0, 0, 0.04, dims.width, dims.depth, 0.08, panel);
+  [-halfWidth + post / 2, halfWidth - post / 2].forEach((x) => {
+    [-halfDepth + post / 2, halfDepth - post / 2].forEach((y) => {
+      addBox(group, x, y, dims.height / 2, post, post, dims.height, timber);
+    });
+  });
+  addBeam(group, [-halfWidth, -halfDepth, dims.height], [halfWidth, -halfDepth, dims.height], post, timber);
+  addBeam(group, [-halfWidth, halfDepth, dims.height], [halfWidth, halfDepth, dims.height], post, timber);
+  addBeam(group, [-halfWidth, -halfDepth, dims.height], [-halfWidth, halfDepth, dims.height], post, timber);
+  addBeam(group, [halfWidth, -halfDepth, dims.height], [halfWidth, halfDepth, dims.height], post, timber);
+  addBeam(group, [-halfWidth, 0, dims.height * 0.55], [halfWidth, 0, dims.height * 0.55], post * 0.7, panel);
+  addBeam(group, [-halfWidth + post, -halfDepth, post], [halfWidth - post, halfDepth, dims.height - post], post * 0.45, timber);
 }
 
 function makeModel(model) {
@@ -282,7 +351,7 @@ function makeModel(model) {
     case "chair": addTable(group, dims, timber, panel, true); break;
     case "shelf": addShelving(group, dims, timber, panel); break;
     case "cabinet": addShelving(group, dims, timber, panel, true); break;
-    case "stairs": addStairs(group, dims, timber, panel); break;
+    case "stairs": addStairs(group, dims, model, timber, panel); break;
     case "wall": addWall(group, dims, timber, panel); break;
     case "gardenhouse": addGardenhouse(group, dims, timber, panel); break;
     case "fence": addFence(group, dims, timber, panel); break;
@@ -306,15 +375,7 @@ function frameModel(model) {
   modelGroup = result.group;
   modelGroup.position.z = -result.dims.height / 2;
   scene.add(modelGroup);
-  const maxDimension = Math.max(result.dims.width, result.dims.height, result.dims.depth, 1);
-  const distance = maxDimension * 2.25;
-  controls.target.set(0, 0, 0);
-  camera.position.set(distance, -distance, distance * 0.8);
-  camera.up.set(0, 0, 1);
-  camera.near = Math.max(0.01, distance / 100);
-  camera.far = distance * 100;
-  camera.updateProjectionMatrix();
-  controls.update();
+  modelBounds = new three.Box3().setFromObject(modelGroup);
 }
 
 function setCameraMode(mode) {
@@ -324,26 +385,54 @@ function setCameraMode(mode) {
     return;
   }
   currentMode = mode;
-  const { width, height, depth } = dimensionsInMeters(currentModel);
-  const distance = Math.max(width, height, depth, 1) * 2.5;
-  const target = controls.target;
-  camera.up.set(0, 0, 1);
-  if (mode === "top") {
-    camera.up.set(0, 1, 0);
-    camera.position.set(target.x, target.y, target.z + distance);
-  } else if (mode === "front") {
-    camera.position.set(target.x, target.y - distance, target.z);
-  } else if (mode === "side") {
-    camera.position.set(target.x + distance, target.y, target.z);
-  } else {
-    const maxDimension = Math.max(width, height, depth, 1);
-    camera.position.set(target.x + maxDimension * 1.8, target.y - maxDimension * 1.8, target.z + maxDimension * 1.35);
-  }
-  camera.lookAt(target);
-  controls.update();
   viewport.hidden = false;
   blueprint.hidden = true;
   status.hidden = true;
+  camera = mode === "3d" ? perspectiveCamera : orthographicCamera;
+  const center = modelBounds.getCenter(new three.Vector3());
+  const size = modelBounds.getSize(new three.Vector3());
+  const maxDimension = Math.max(size.x, size.y, size.z, 0.5);
+  const direction = mode === "top"
+    ? new three.Vector3(0, 0, 1)
+    : mode === "front"
+      ? new three.Vector3(0, -1, 0)
+      : mode === "side"
+        ? new three.Vector3(1, 0, 0)
+        : new three.Vector3(1, -1, 0.72).normalize();
+  const viewWidth = mode === "top" ? size.x : mode === "front" ? size.x : mode === "side" ? size.y : maxDimension;
+  const viewHeight = mode === "top" ? size.y : mode === "front" ? size.z : mode === "side" ? size.z : maxDimension;
+  camera.up.set(0, 0, 1);
+  if (mode === "top") camera.up.set(0, 1, 0);
+  if (camera.isOrthographicCamera) camera.zoom = 1;
+  if (mode === "3d") {
+    camera.position.copy(center).add(new three.Vector3(maxDimension * 1.8, -maxDimension * 1.8, maxDimension * 1.3));
+  } else {
+    const aspect = Math.max(0.25, viewport.clientWidth / Math.max(viewport.clientHeight, 1));
+    const halfHeight = Math.max(viewHeight, viewWidth / aspect) * 0.62;
+    orthographicCamera.left = -halfHeight * aspect;
+    orthographicCamera.right = halfHeight * aspect;
+    orthographicCamera.top = halfHeight;
+    orthographicCamera.bottom = -halfHeight;
+    orthographicCamera.near = 0.01;
+    orthographicCamera.far = maxDimension * 30;
+    orthographicCamera.position.copy(center).addScaledVector(direction, maxDimension * 4);
+    orthographicCamera.updateProjectionMatrix();
+  }
+  camera.lookAt(center);
+  controls?.dispose();
+  controls = new OrbitControlsClass(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.05;
+  controls.enableRotate = mode === "3d";
+  controls.enableZoom = true;
+  controls.screenSpacePanning = true;
+  controls.minDistance = Math.max(0.15, maxDimension * 0.08);
+  controls.maxDistance = maxDimension * 20;
+  controls.minZoom = 0.55;
+  controls.maxZoom = 12;
+  controls.target.copy(center);
+  controls.addEventListener("change", animate);
+  resizeRenderer();
   updateModeButtons();
   if (animationFrame === undefined) animate();
 }
@@ -354,27 +443,44 @@ function resizeRenderer() {
   const height = viewport.clientHeight;
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
+  if (camera.isOrthographicCamera && currentModel && modelBounds) {
+    const size = modelBounds.getSize(new three.Vector3());
+    const aspect = width / height;
+    const verticalSpan = currentMode === "top" ? size.y : size.z;
+    const horizontalSpan = currentMode === "side" ? size.y : size.x;
+    const halfHeight = Math.max(verticalSpan, horizontalSpan / aspect, 0.5) * 0.62;
+    camera.left = -halfHeight * aspect;
+    camera.right = halfHeight * aspect;
+    camera.top = halfHeight;
+    camera.bottom = -halfHeight;
+  }
   camera.updateProjectionMatrix();
+  if (isReady && currentMode !== "blueprint") animate();
 }
 
 function animate() {
-  animationFrame = requestAnimationFrame(animate);
-  try {
-    controls.update();
-    renderer.render(scene, camera);
-  } catch (error) {
-    cancelAnimationFrame(animationFrame);
+  if (animationFrame !== undefined) return;
+  animationFrame = requestAnimationFrame(() => {
     animationFrame = undefined;
-    console.error("CAD-Ansicht konnte nicht gerendert werden.", error);
-    showBlueprint("3D-Rendering nicht verfügbar – die technische SVG-Zeichnung bleibt nutzbar.");
-  }
+    try {
+      const dampingContinues = controls.update();
+      renderer.render(scene, camera);
+      if (dampingContinues) animate();
+    } catch (error) {
+      console.error("CAD-Ansicht konnte nicht gerendert werden.", error);
+      showBlueprint("3D-Rendering nicht verfügbar – die technische SVG-Zeichnung bleibt nutzbar.");
+    }
+  });
 }
 
 function initialize(THREE, OrbitControls) {
   three = THREE;
+  OrbitControlsClass = OrbitControls;
   scene = new three.Scene();
   scene.background = new three.Color(0x101e29);
-  camera = new three.PerspectiveCamera(42, 1, 0.01, 1000);
+  perspectiveCamera = new three.PerspectiveCamera(42, 1, 0.01, 1000);
+  orthographicCamera = new three.OrthographicCamera(-5, 5, 5, -5, 0.01, 1000);
+  camera = perspectiveCamera;
   renderer = new three.WebGLRenderer({ canvas, antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.outputColorSpace = three.SRGBColorSpace;
@@ -394,15 +500,12 @@ function initialize(THREE, OrbitControls) {
   scene.add(grid);
   const axes = new three.AxesHelper(1.5);
   scene.add(axes);
-  controls = new OrbitControls(camera, renderer.domElement);
+  controls = new OrbitControlsClass(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.dampingFactor = 0.07;
+  controls.dampingFactor = 0.05;
   controls.screenSpacePanning = true;
-  controls.minDistance = 0.2;
-  controls.maxDistance = 100;
   if ("ResizeObserver" in window) new ResizeObserver(resizeRenderer).observe(viewport);
   else window.addEventListener("resize", resizeRenderer);
-  window.addEventListener("resize", resizeRenderer);
   isReady = true;
   resizeRenderer();
 }
@@ -428,11 +531,27 @@ fullscreenButton.addEventListener("click", async () => {
   }
 });
 
+exitFullscreenButton.addEventListener("click", async () => {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+  } catch (error) {
+    console.error("Vollbild konnte nicht geschlossen werden.", error);
+    setStatus("Vollbild konnte nicht geschlossen werden. Bitte Esc drücken.", true);
+  }
+});
+
+document.addEventListener("fullscreenchange", () => {
+  const fullscreen = document.fullscreenElement === shell;
+  exitFullscreenButton.hidden = !fullscreen;
+  fullscreenButton.textContent = fullscreen ? "Vollbild schließen" : "Skizze vergrößern";
+  resizeRenderer();
+});
+
 window.addEventListener("werkfinder:cad-model", (event) => {
   currentModel = event.detail;
   blueprint.hidden = currentMode !== "blueprint";
   if (!isReady) {
-    setStatus("Technische Zeichnung aktiv – 3D-Viewer wird geladen …");
+    showBlueprint(loadFailureMessage ?? "Technische Zeichnung aktiv – 3D-Viewer wird geladen …");
     return;
   }
   try {
@@ -449,6 +568,7 @@ window.addEventListener("werkfinder:cad-model", (event) => {
   }
 });
 
+currentModel = window.werkfinderCadModel;
 try {
   const [THREE, controlsModule] = await Promise.all([
     import("three"),
@@ -462,5 +582,6 @@ try {
   }
 } catch (error) {
   console.error("Three.js oder WebGL ist nicht verfügbar.", error);
-  showBlueprint("3D-Viewer nicht verfügbar (CDN oder WebGL) – die technische SVG-Zeichnung bleibt nutzbar.");
+  loadFailureMessage = "3D-Viewer nicht verfügbar (CDN oder WebGL) – die technische SVG-Zeichnung bleibt nutzbar.";
+  showBlueprint(loadFailureMessage);
 }

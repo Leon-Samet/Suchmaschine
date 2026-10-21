@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#f6f5f0" />
     <meta name="description" content="Finde Anleitungen, Serviceinfos und Reparaturhilfen für Handwerk und Servicetechnik." />
     <title>WerkFinder – Wissen fürs Handwerk</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -33,7 +34,15 @@
           <span>werk<span class="brand-accent">finder</span></span>
         </a>
         <div class="topbar-note"><span class="status-dot"></span> Wissen fürs Handwerk</div>
-        <a class="topbar-link" href="#so-funktionierts">Über WerkFinder <span aria-hidden="true">↗</span></a>
+        <div class="topbar-actions">
+          <div class="theme-picker" role="group" aria-label="Darstellung auswählen">
+            <span>DESIGN</span>
+            <button class="theme-option is-selected" type="button" data-theme-choice="werkstatt" aria-pressed="true">Werkstatt</button>
+            <button class="theme-option" type="button" data-theme-choice="blaupause" aria-pressed="false">Blaupause</button>
+            <button class="theme-option" type="button" data-theme-choice="abend" aria-pressed="false">Abend</button>
+          </div>
+          <a class="topbar-link" href="#so-funktionierts">Über WerkFinder <span aria-hidden="true">↗</span></a>
+        </div>
       </header>
 
       <main id="top">
@@ -55,14 +64,15 @@
           </div>
           <div class="search-meta"><span>Freitextsuche · ganz normale Sprache</span><span id="query-count">0 / 200</span></div>
         </form>
-        <div class="trade-row">
-          <span class="trade-label">BEREICH</span>
-          <div class="trade-options" role="group" aria-label="Gewerk auswählen">
-            <button class="trade-option is-selected" type="button" data-trade="">Alles</button>
-            <button class="trade-option" type="button" data-trade="Elektrotechnik">Elektro</button>
-            <button class="trade-option" type="button" data-trade="Sanitär und Heizung">Sanitär &amp; Heizung</button>
-            <button class="trade-option" type="button" data-trade="Haushaltsgeräte">Haushaltsgeräte</button>
-            <button class="trade-option" type="button" data-trade="Servicetechnik">Servicetechnik</button>
+        <label class="product-field-label" for="product-model">PRODUKT ODER MODELLNUMMER <span>optional, hilft bei passenden Treffern</span></label>
+        <input id="product-model" class="product-field" type="text" maxlength="120" autocomplete="off" placeholder="z. B. Bosch WGG244F40 oder E-Nr. WGG244F40/01" />
+        <div class="trade-row search-type-row">
+          <span class="trade-label">ICH SUCHE</span>
+          <div class="trade-options search-types" role="group" aria-label="Art der Suche auswählen">
+            <button class="trade-option search-type is-selected" type="button" data-search-type="all" aria-pressed="true">Alles</button>
+            <button class="trade-option search-type" type="button" data-search-type="product" aria-pressed="false">Produkt &amp; Anleitung</button>
+            <button class="trade-option search-type" type="button" data-search-type="parts" aria-pressed="false">Ersatzteile</button>
+            <button class="trade-option search-type" type="button" data-search-type="build" aria-pressed="false">Bau- &amp; Montageanleitung</button>
           </div>
         </div>
         <div class="examples">
@@ -70,6 +80,7 @@
           <button type="button" class="example-chip" data-query="Miele Kühlschrank Tür ausbauen">Miele Kühlschrank · Tür ausbauen <span>↗</span></button>
           <button type="button" class="example-chip" data-query="Toilette Spülkasten reparieren">Spülkasten reparieren <span>↗</span></button>
           <button type="button" class="example-chip" data-query="Lichtschalter anschließen Anleitung">Lichtschalter anschließen <span>↗</span></button>
+          <button type="button" class="example-chip" data-query="Wie baue ich ein Regal 120 x 30 x 180 cm?">Regal bauen &amp; skizzieren <span>↗</span></button>
         </div>
       </section>
 
@@ -79,15 +90,39 @@
           <button id="copy-query" class="copy-button" type="button" title="Suchanfrage kopieren"><span aria-hidden="true">▢</span> Anfrage kopieren</button>
         </div>
         <p id="results-summary" class="results-summary"></p>
+        <section id="build-help" class="build-help" aria-labelledby="build-title" hidden>
+          <div class="build-heading">
+            <div>
+              <div class="eyebrow"><span class="eyebrow-line"></span> DEIN ENTWURF</div>
+              <h2 id="build-title">Bauidee &amp; Skizze</h2>
+            </div>
+            <span class="sketch-badge">SCHEMATISCH · NICHT MASSSTABSGETREU</span>
+          </div>
+          <p id="build-summary" class="build-summary"></p>
+          <p id="build-dimension-note" class="dimension-note"></p>
+          <div id="sketch-options" class="sketch-options" role="group" aria-label="Beispielskizze auswählen"></div>
+          <div class="build-layout">
+            <div class="sketch-frame">
+              <div id="sketch-container"></div>
+              <p class="sketch-caption">Ansicht von vorne · Maßangaben dienen der Orientierung</p>
+            </div>
+            <div class="build-steps-panel">
+              <h3 id="build-steps-title">Erste Schritte</h3>
+              <ol id="build-steps"></ol>
+              <p id="build-material" class="materials-note"></p>
+            </div>
+          </div>
+          <p class="build-note">Die Skizze ist eine automatisch erzeugte Orientierungshilfe, kein geprüfter Bauplan. Prüfe Material, Verbindungen, Tragfähigkeit und Befestigung passend zum Einsatz. Für Elektro-, Gas- und andere sicherheitskritische Arbeiten sind Fachleute und geltende Vorschriften erforderlich.</p>
+        </section>
         <div id="result-grid" class="result-grid"></div>
-        <p class="results-note"><span aria-hidden="true">↗</span> Die Links führen zu externen Suchergebnissen. Prüfe vor der Arbeit immer die Herstellerangaben und Sicherheitsregeln.</p>
+        <p class="results-note"><span aria-hidden="true">↗</span> Die Links öffnen aktuelle Suchergebnisse bei Google oder YouTube. Ein exakter Treffer hängt von Produktname und Modellnummer ab. Prüfe vor der Arbeit immer Herstellerangaben und Sicherheitsregeln.</p>
       </section>
 
       <section class="how-section" id="so-funktionierts">
         <div class="how-title"><div class="eyebrow"><span class="eyebrow-line"></span> EINFACH LOSLEGEN</div><h2>Vom Problem<br />zum nächsten Schritt.</h2></div>
         <div class="how-steps">
           <article class="how-step"><span class="step-number">01</span><div><h3>Beschreiben</h3><p>Was ist kaputt? Was möchtest du montieren oder wissen?</p></div><span class="step-arrow" aria-hidden="true">↘</span></article>
-          <article class="how-step"><span class="step-number">02</span><div><h3>Bereich wählen</h3><p>Gewerk anklicken oder einfach alles durchsuchen lassen.</p></div><span class="step-arrow" aria-hidden="true">↘</span></article>
+          <article class="how-step"><span class="step-number">02</span><div><h3>Suchart wählen</h3><p>Produktinfos, Ersatzteile, Bauanleitungen oder alle Suchwege verwenden.</p></div><span class="step-arrow" aria-hidden="true">↘</span></article>
           <article class="how-step"><span class="step-number">03</span><div><h3>Quellen öffnen</h3><p>Passende Suchwege öffnen und die richtige Anleitung finden.</p></div><span class="step-arrow" aria-hidden="true">↗</span></article>
         </div>
       </section>

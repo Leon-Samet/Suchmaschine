@@ -1,6 +1,6 @@
 # WerkFinder
 
-Statischer Suchprototyp für Handwerk und Servicetechnik. Nutzer beschreiben ein Problem in freier Sprache, wählen optional ein Gewerk und öffnen passende Suchen für Hersteller-Support, Reparaturanleitungen, Videos und Ersatzteilinformationen.
+Statischer Suchprototyp für Handwerk und Servicetechnik. Nutzer beschreiben ein Problem in freier Sprache und öffnen passende Suchen für Hersteller-Support, Reparaturanleitungen, Videos und Ersatzteilinformationen.
 
 ## Lokal starten
 
@@ -12,7 +12,7 @@ Das Repository kann als statische Website direkt mit Vercel verbunden werden. Fr
 
 ## Aktueller Umfang
 
-Die App leitet Suchanfragen an Google und YouTube weiter. Sie ruft noch keine eigene KI, Datenbank oder Hersteller-API auf und zeigt keine selbst verifizierten Treffer an. Vor Arbeiten an Geräten oder Installationen sind Herstellerangaben und Sicherheitsregeln maßgeblich.
+Die App leitet Suchanfragen an Google und YouTube weiter. Sucharten für Produktinformationen, Ersatzteile und Bau-/Montageanleitungen sowie ein optionales Produkt-/Modellnummernfeld helfen, die Suchanfrage zu präzisieren. Bei Bau-, Herstellungs- und Skizzierwünschen zeigt die Seite zusätzlich eine schematische Beispielskizze, erkannte Maße und allgemeine erste Schritte. Ohne Maße werden Beispielmaße angeboten. Diese automatisch erzeugte Orientierung ist kein geprüfter oder maßstabsgetreuer Bauplan. Die App ruft keine eigene KI, Datenbank oder Hersteller-API auf und kann daher keine bestimmten Treffer oder Herstellerseiten garantieren. Es werden keine `site:`-Suchoperatoren verwendet. Für beste Ergebnisse Produktname und Modellnummer eingeben. Vor Arbeiten an Geräten oder Installationen sind Herstellerangaben und Sicherheitsregeln maßgeblich. Über die Design-Auswahl kann zwischen Werkstatt, Blaupause und Abend gewechselt werden. Das grüne WF-Icon auf weißem Hintergrund liegt in `favicon.svg`.
 
 ## Temporäre Passwort-Abfrage
 

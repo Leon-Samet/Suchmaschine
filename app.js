@@ -27,6 +27,7 @@ const resultsSummary = document.querySelector("#results-summary");
 const resultGrid = document.querySelector("#result-grid");
 const searchTypeButtons = [...document.querySelectorAll(".search-type")];
 const themeButtons = [...document.querySelectorAll(".theme-option")];
+const layoutToggle = document.querySelector("#layout-toggle");
 const productModelInput = document.querySelector("#product-model");
 const buildHelp = document.querySelector("#build-help");
 const buildSummary = document.querySelector("#build-summary");
@@ -75,17 +76,49 @@ const searchSources = {
   ],
 };
 
+function detectTradeType(query) {
+  if (/\b(lichtschalter|ausschalter|wechselschalter|wechselschaltung|steckdose|schaltplan|verteilerkasten|elektrik|elektroinstallation|sicherung\w*|fi[- ]?schalter|ls[- ]?schalter|rcd)\b/i.test(query)) return "electrical";
+  if (/(?:^|[^\p{L}\p{N}_])(?:auto|kfz|fahrzeug|brems\w*|bremsscheib\w*|radlager\w*|ölwechsel|oelwechsel|obd\w*|zündkerz\w*|zuendkerz\w*|keilriem\w*|kupplung\w*)(?=$|[^\p{L}\p{N}_])/iu.test(query)) return "vehicle";
+  return null;
+}
+
+function detectVehicleTask(query) {
+  if (/(?:^|[^\p{L}\p{N}_])(?:ölwechsel|oelwechsel|motoröl|motoroel|ölfilter|oelfilter)(?=$|[^\p{L}\p{N}_])/iu.test(query)) return "oil";
+  if (/\b(zündkerz\w*|zuendkerz\w*|keilriem\w*|obd\w*)\b/i.test(query)) return "engine";
+  return "brake";
+}
+
+function portalSearch(query, domain) {
+  return `https://www.google.com/search?q=${encodeURIComponent(`${query} site:${domain}`)}`;
+}
+
 function renderResults() {
   const rawQuery = queryInput.value.trim();
   if (!rawQuery) return;
   const productModel = productModelInput.value.trim();
   currentSearch = [rawQuery, productModel].filter(Boolean).join(" ");
   resultsSummary.textContent = `Suchanfrage: „${currentSearch}“ · Öffne einen Suchweg für aktuelle Treffer.`;
-  const sources = searchSources[selectedSearchType] ?? searchSources.all;
+  const tradeType = detectTradeType(rawQuery);
+  const sources = tradeType === "electrical"
+    ? [
+      { name: "Technischer Schaltplan", detail: "Schematische DIN-/IEC-Symbolik und sichere Fachhinweise", icon: "⌁", terms: (query) => `${query} Schaltplan DIN EN 60617` },
+      { name: "VDE · Fachinformationen", detail: "Normen, Schutzmaßnahmen und Informationen zur Elektroinstallation", icon: "VDE", terms: (query) => `${query} VDE Fachinformation` },
+      { name: "Herstellerunterlagen", detail: "Datenblätter und Anschlussinformationen des konkreten Geräts", icon: "↗", terms: (query) => `${query} Hersteller Anschlussplan Datenblatt` },
+    ]
+    : tradeType === "vehicle"
+      ? [
+        { name: "AUTODOC · Ersatzteilsuche", detail: "Bauteile nach Fahrzeug, Marke und Modell suchen", icon: "01", url: (query) => portalSearch(query, "autodoc.de") },
+        { name: "Motointegrator · Ersatzteile", detail: "Fahrzeugbezogene Teile und Angebote recherchieren", icon: "02", url: (query) => portalSearch(query, "motointegrator.de") },
+        { name: "autodaten · Reparaturinformationen", detail: "Fahrzeugbezogene Wartungs- und Reparaturdaten suchen", icon: "03", url: (query) => portalSearch(query, "autodaten.net") },
+        { name: "Leebmann24 · Teilekatalog", detail: "Originalteile und Herstellerkataloge recherchieren", icon: "04", url: (query) => portalSearch(query, "leebmann24.com") },
+        { name: "Reparaturanleitungen", detail: "Wartungs- und Reparaturhinweise für Fahrzeug und Bauteil", icon: "05", terms: (query) => `${query} Reparaturanleitung` },
+      ]
+      : searchSources[selectedSearchType] ?? searchSources.all;
   resultGrid.replaceChildren(...sources.map((source) => {
-    const searchTerms = source.terms(currentSearch).trim().replace(/\s+/g, " ");
+    const searchTerms = source.terms?.(currentSearch).trim().replace(/\s+/g, " ");
     const baseUrl = source.host === "youtube" ? "https://www.youtube.com/results" : "https://www.google.com/search";
-    const url = `${baseUrl}?${source.host === "youtube" ? "search_query" : "q"}=${encodeURIComponent(searchTerms)}`;
+    const url = source.url?.(currentSearch)
+      ?? `${baseUrl}?${source.host === "youtube" ? "search_query" : "q"}=${encodeURIComponent(searchTerms)}`;
     const link = document.createElement("a");
     link.className = "result-card";
     link.href = url;
@@ -120,6 +153,49 @@ function renderResults() {
 }
 
 const sketchTypes = [
+  {
+    id: "electrical",
+    pattern: /\b(lichtschalter|ausschalter|wechselschalter|wechselschaltung|steckdose|schaltplan|verteilerkasten|elektrik|elektroinstallation|sicherung\w*|ls[- ]?schalter|fi[- ]?schalter|rcd)\b/i,
+    title: "Technischer Schaltplan · schematische Übersicht",
+    defaults: { width: 120, depth: 12, height: 80 },
+    components: ["Leitungsschutz (LS)", "Schalter / Wechselschaltung", "Leuchte", "Steckdose", "L / N / PE"],
+    steps: ["Diese Darstellung ist ein Funktionsschema, kein Installations- oder Ausführungsplan.", "Fest installierte elektrische Anlagen ausschließlich durch eine Elektrofachkraft planen, prüfen und bearbeiten lassen.", "Aderfarben und Symbole anhand der geltenden Normen, Anlagenbedingungen und Herstellerunterlagen verifizieren."],
+    isElectrical: true,
+  },
+  {
+    id: "vehicle",
+    pattern: /(?:^|[^\p{L}\p{N}_])(?:auto|kfz|fahrzeug|brems\w*|bremsscheib\w*|radlager\w*|ölwechsel|oelwechsel|obd\w*|zündkerz\w*|zuendkerz\w*|keilriem\w*|kupplung\w*)(?=$|[^\p{L}\p{N}_])/iu,
+    title: "KFZ-Bauteil · schematische Explosionsskizze",
+    defaults: { width: 80, depth: 45, height: 55 },
+    components: ["Bremsscheibe (Beispiel)", "Bremsbeläge", "Bremssattel", "Radnabe / Befestigung"],
+    steps: ["Bauteilzuordnung ausschließlich anhand Fahrzeug-Identnummer, Motorisierung und Herstellerunterlagen prüfen.", "Fahrzeug gegen Wegrollen sichern und Arbeiten nur mit geeigneter Hebe- und Abstützausrüstung durchführen.", "Sicherheitsrelevante Arbeiten an Bremse, Lenkung und Fahrwerk einer qualifizierten Werkstatt überlassen.", "Anzugsdrehmomente sind fahrzeug- und verbindungsspezifisch; ausschließlich Herstellerwerte verwenden."],
+    isVehicle: true,
+  },
+  {
+    id: "kitchen",
+    pattern: /\b(küche|küchenzeile|küchenblock|küchenunterschrank|küchenmöbel)\b/i,
+    title: "Küchenzeile · Front- und Schnittansicht",
+    defaults: { width: 240, depth: 60, height: 220 },
+    components: ["Sockel / Unterschränke im 60-cm-Raster", "Arbeitsplatte · OKFF ca. 91 cm", "Spülbecken und Armatur", "Kochfeld", "Oberschränke / Nische"],
+    steps: ["Wand, Anschlüsse, Gerätebreiten und Wandunebenheiten vor Ort aufnehmen; Raster und Fugen anhand der tatsächlichen Produkte prüfen.", "Unterschränke ausrichten und untereinander verbinden; Arbeitsplatte und Wandanschluss nach Herstellerangabe montieren.", "Ausschnitte, Wasser- und Elektroanschlüsse ausschließlich fachgerecht und passend zu den Geräten ausführen lassen.", "Oberschränke in geeigneter tragfähiger Wand befestigen und gegen Kippen sichern."],
+  },
+  {
+    id: "bath",
+    pattern: /\b(bad|badezimmer|waschtisch|dusche|duschwanne|badmöbel)\b/i,
+    title: "Bad · Waschtisch und Dusche",
+    defaults: { width: 240, depth: 180, height: 220 },
+    components: ["Waschtisch / Unterschrank", "Waschbecken und Armatur", "Duschfläche", "Duschabtrennung", "Wand- und Bodenanschluss"],
+    steps: ["Leitungsführung, Abdichtung und Gefälle durch Fachplanung auf Bestand und geltende Regeln abstimmen.", "Sanitärobjekte anhand Herstellermaße und tatsächlicher Einbausituation positionieren.", "Abdichtung und Durchdringungen systemgerecht ausführen und dokumentieren.", "Wasseranschlüsse durch einen Installationsfachbetrieb prüfen lassen."],
+    isStructural: true,
+  },
+  {
+    id: "wardrobe",
+    pattern: /\b(schrankwand|einbauschrank|kleiderschrank|garderobenschrank)\b/i,
+    title: "Schrankwand · Frontansicht",
+    defaults: { width: 300, depth: 60, height: 240 },
+    components: ["Korpusmodule", "Einlegeböden", "Kleiderstange", "Fronten / Türen", "Wand- und Kippsicherung"],
+    steps: ["Wandbreite, Raumhöhe, Sockel, Deckenverlauf und Türöffnungen exakt aufnehmen.", "Korpusse lot- und fluchtgerecht ausrichten, verbinden und gemäß Wandaufbau sichern.", "Beschläge und Fronten nach Herstellerangaben einstellen; Kippsicherung vor Nutzung prüfen."],
+  },
   {
     id: "roof",
     pattern: /\b(dachstuhl|satteldach|dach|dachsparren|firstpfette|kehlbalken)\b/i,
@@ -441,6 +517,233 @@ function drawRoofSketch(builder, dimensions) {
   line(left + 15, eaveY - 3, left + 55, eaveY - 45, "sketch-angle");
 }
 
+function drawKitchenSketch(builder, dimensions) {
+  const { add, line, rect, label, dimension } = builder;
+  label(55, 34, "KÜCHENZEILE · FRONTANSICHT", "sketch-kicker");
+  label(505, 34, "SCHNITT · SCHEMA", "sketch-kicker");
+  const left = 65;
+  const right = 430;
+  const floor = 345;
+  const scale = (floor - 85) / dimensions.height;
+  const counterY = floor - 91 * scale;
+  const upperBottom = counterY - 55 * scale;
+  const upperTop = upperBottom - 72 * scale;
+  const baseWidth = right - left;
+  const moduleCount = Math.max(2, Math.min(6, Math.round(dimensions.width / 60)));
+  const moduleWidth = baseWidth / moduleCount;
+  line(left - 12, floor, right + 10, floor, "sketch-ground");
+  rect(left, counterY + 4, baseWidth, floor - counterY - 4, "sketch-fill");
+  rect(left, floor - 16, baseWidth, 16, "sketch-timber");
+  rect(left - 5, counterY - 5, baseWidth + 10, 9, "sketch-kitchen-counter");
+  for (let index = 0; index < moduleCount; index += 1) {
+    const x = left + index * moduleWidth;
+    line(x, counterY + 8, x, floor - 16, "sketch-structure");
+    line(x + 7, counterY + 35, x + moduleWidth - 7, counterY + 35, "sketch-muted-line");
+    line(x + 7, counterY + 63, x + moduleWidth - 7, counterY + 63, "sketch-muted-line");
+    add("circle", { cx: x + moduleWidth / 2, cy: counterY + 49, r: 2.5, class: "sketch-hardware" });
+  }
+  const sinkX = left + moduleWidth * 0.6;
+  add("path", { d: `M${sinkX} ${counterY - 4} v11 q0 18 20 18 q20 0 20 -18 v-11`, class: "sketch-plumbing" });
+  add("path", { d: `M${sinkX + 29} ${counterY - 7} v-15 q0 -10 11 -10 h8`, class: "sketch-plumbing" });
+  const hobX = left + moduleWidth * Math.min(2.5, moduleCount - 1);
+  rect(hobX, counterY - 7, moduleWidth * 0.85, 4, "sketch-hob");
+  [0.22, 0.7].forEach((fraction) => {
+    add("circle", { cx: hobX + moduleWidth * fraction, cy: counterY - 11, r: 8, class: "sketch-hob-ring" });
+    add("circle", { cx: hobX + moduleWidth * fraction, cy: counterY - 11, r: 3, class: "sketch-hob-ring" });
+  });
+  const upperWidth = moduleCount * moduleWidth * 0.8;
+  const upperLeft = left + (baseWidth - upperWidth) / 2;
+  rect(upperLeft, upperTop, upperWidth, upperBottom - upperTop, "sketch-upper-cabinet");
+  for (let index = 1; index < 3; index += 1) {
+    const x = upperLeft + upperWidth * index / 3;
+    line(x, upperTop, x, upperBottom, "sketch-structure");
+    add("circle", { cx: x - upperWidth / 30, cy: (upperTop + upperBottom) / 2, r: 2, class: "sketch-hardware" });
+  }
+  label(left, 74, "Oberschränke", "sketch-part-label");
+  label(left, upperBottom + 20, `Nische ca. ${formatDimension((upperBottom - counterY) / scale)}`, "sketch-dimension-text");
+  label(left, floor + 23, "Sockel", "sketch-dimension-text");
+  dimension(left, 405, right, 405, `Gesamtbreite ${formatDimension(dimensions.width)}`);
+  dimension(38, counterY, 38, floor, "OKFF 91 cm", true);
+
+  const sectionX = 530;
+  const sectionRight = 735;
+  const sectionFloor = 345;
+  const sectionScale = (sectionFloor - 85) / dimensions.height;
+  const sectionCounter = sectionFloor - 91 * sectionScale;
+  const sectionCabinetDepth = dimensions.depth * sectionScale * 0.42;
+  line(sectionX - 12, sectionFloor, sectionRight, sectionFloor, "sketch-ground");
+  rect(sectionX + 35, sectionCounter + 5, sectionCabinetDepth, sectionFloor - sectionCounter - 21, "sketch-fill");
+  rect(sectionX + 28, sectionCounter - 5, sectionCabinetDepth + 14, 9, "sketch-kitchen-counter");
+  rect(sectionX + 35, sectionCounter - 16, sectionCabinetDepth, 11, "sketch-timber");
+  const sectionTop = sectionCounter - 55 * sectionScale - 72 * sectionScale;
+  rect(sectionX + 35, sectionTop, sectionCabinetDepth * 0.86, 72 * sectionScale, "sketch-upper-cabinet");
+  line(sectionX + 35, sectionTop + 36 * sectionScale, sectionX + 35 + sectionCabinetDepth * 0.86, sectionTop + 36 * sectionScale, "sketch-structure");
+  label(sectionX, 74, `Tiefe ${formatDimension(dimensions.depth)}`, "sketch-dimension-text");
+  label(sectionX + 52, sectionCounter - 25, "Arbeitsplatte", "sketch-part-label");
+  label(sectionX + 52, sectionCounter - 55 * sectionScale - 6, "Oberschrank", "sketch-part-label");
+  dimension(sectionRight - 10, sectionFloor, sectionRight - 10, sectionCounter, "91 cm", true);
+  dimension(sectionRight - 33, sectionCounter, sectionRight - 33, sectionTop + 72 * sectionScale, "Nische 55 cm", true);
+  label(55, 450, "Rastermaß 60 cm · individuelle Geräte-, Anschluss- und Korpusmaße vor Ort prüfen", "sketch-dimension-text");
+}
+
+function drawElectricalSketch(builder) {
+  const { add, line, rect, label } = builder;
+  label(48, 34, "FUNKTIONSPLAN · SYMBOLSCHEMA (NICHT AUSFÜHRUNGSREIF)", "sketch-kicker");
+  const yLive = 118;
+  const yNeutral = 210;
+  const yEarth = 282;
+  line(75, yLive, 165, yLive, "sketch-wire-live");
+  line(75, yNeutral, 650, yNeutral, "sketch-wire-neutral");
+  line(75, yEarth, 650, yEarth, "sketch-wire-earth");
+  line(75, yEarth, 650, yEarth, "sketch-wire-earth-yellow");
+  label(40, yLive + 4, "L", "sketch-wire-label");
+  label(40, yNeutral + 4, "N", "sketch-wire-label");
+  label(40, yEarth + 4, "PE", "sketch-wire-label");
+
+  rect(165, 93, 58, 50, "sketch-electrical-device");
+  label(174, 88, "LS / RCD", "sketch-part-label");
+  line(177, 118, 190, 118, "sketch-electrical-symbol");
+  add("path", { d: "M190 118 l18 -14", class: "sketch-electrical-symbol" });
+  line(208, 118, 223, 118, "sketch-electrical-symbol");
+  line(223, yLive, 308, yLive, "sketch-wire-live");
+  add("circle", { cx: 328, cy: yLive, r: 3, class: "sketch-electrical-node" });
+  line(308, yLive, 328, yLive, "sketch-wire-live");
+  add("path", { d: `M328 ${yLive} v20 m0 0 l37 -20`, class: "sketch-electrical-symbol" });
+  line(365, yLive, 420, yLive, "sketch-wire-live");
+  add("circle", { cx: 447, cy: yLive, r: 22, class: "sketch-lamp-symbol" });
+  add("path", { d: "M432 103 l30 30 M462 103 l-30 30", class: "sketch-electrical-symbol" });
+  line(469, yLive, 515, yLive, "sketch-wire-live");
+  line(515, yLive, 515, yNeutral, "sketch-wire-neutral");
+  label(301, 169, "Ausschalter", "sketch-part-label");
+  label(430, 169, "Leuchte", "sketch-part-label");
+  label(156, 171, "Schutzorgan", "sketch-part-label");
+
+  line(223, yLive, 223, 327, "sketch-wire-live");
+  line(223, 327, 285, 327, "sketch-wire-live");
+  add("circle", { cx: 306, cy: 327, r: 20, class: "sketch-socket-symbol" });
+  line(297, 320, 297, 334, "sketch-electrical-symbol");
+  line(315, 320, 315, 334, "sketch-electrical-symbol");
+  line(326, 327, 390, 327, "sketch-wire-earth");
+  line(326, 327, 390, 327, "sketch-wire-earth-yellow");
+  label(274, 370, "Steckdose · schematisch", "sketch-part-label");
+  label(80, 390, "Aderkennzeichnung: L = braun/schwarz · N = blau · PE = grün-gelb", "sketch-dimension-text");
+  label(80, 418, "Symbolik orientiert an DIN EN 60617; Ausführung/Zuordnung nur durch Elektrofachkraft prüfen.", "sketch-dimension-text");
+}
+
+function drawVehicleSketch(builder, dimensions, task) {
+  const { add, line, rect, label } = builder;
+  if (task === "oil") {
+    label(46, 34, "MOTORSCHMIERUNG · SCHEMATISCHE BAUTEILÜBERSICHT", "sketch-kicker");
+    rect(145, 180, 300, 112, "sketch-fill");
+    rect(175, 285, 240, 45, "sketch-caliper");
+    add("path", { d: "M225 292 q70 45 140 0", class: "sketch-brake-disc" });
+    add("rect", { x: 460, y: 192, width: 54, height: 112, rx: 12, class: "sketch-upper-cabinet" });
+    line(487, 304, 487, 324, "sketch-wire-live");
+    add("path", { d: "M470 216 h34 M470 229 h34 M470 242 h34 M470 255 h34", class: "sketch-electrical-symbol" });
+    add("circle", { cx: 335, cy: 348, r: 17, class: "sketch-fastener" });
+    line(335, 330, 335, 316, "sketch-leader");
+    label(148, 160, "Motorblock (schematisch)", "sketch-part-label");
+    label(184, 357, "Ölwanne", "sketch-part-label");
+    label(529, 221, "Ölfilter", "sketch-part-label");
+    label(362, 348, "Ablassschraube + Dichtung", "sketch-part-label");
+    label(500, 293, "Bauteilvariante nach Motorcode", "sketch-dimension-text");
+    label(50, 430, "Ölsorte, Füllmenge, Filter und Wechselverfahren immer nach Fahrzeughersteller bestimmen.", "sketch-dimension-text");
+    return;
+  }
+  if (task === "engine") {
+    label(46, 34, "MOTOR · SCHEMATISCHE ZÜND-/RIEMENTRIEB-ÜBERSICHT", "sketch-kicker");
+    rect(140, 155, 335, 190, "sketch-fill");
+    for (let index = 0; index < 4; index += 1) {
+      const x = 200 + index * 65;
+      add("path", { d: `M${x} 110 v48 l-12 14 h24 l-12 -14`, class: "sketch-kitchen-counter" });
+      label(x, 94, `Z${index + 1}`, "sketch-dimension-text", { "text-anchor": "middle" });
+      line(x, 174, x, 238, "sketch-structure");
+    }
+    add("ellipse", { cx: 310, cy: 253, rx: 94, ry: 58, class: "sketch-brake-disc" });
+    add("ellipse", { cx: 310, cy: 253, rx: 66, ry: 38, class: "sketch-brake-disc-inner" });
+    label(515, 174, "Zündkerzen", "sketch-part-label");
+    label(515, 255, "Keilrippenriemen", "sketch-part-label");
+    label(50, 430, "Zündfolge, Motorkennbuchstabe und Riemenführung fahrzeugspezifisch aus Unterlagen prüfen.", "sketch-dimension-text");
+    return;
+  }
+  label(46, 34, "BREMSANLAGE · SCHEMATISCHE EXPLOSIONSANSICHT", "sketch-kicker");
+  const cx = 270;
+  const cy = 228;
+  add("circle", { cx, cy, r: 103, class: "sketch-brake-disc" });
+  add("circle", { cx, cy, r: 72, class: "sketch-brake-disc-inner" });
+  add("circle", { cx, cy, r: 27, class: "sketch-brake-hub" });
+  for (let index = 0; index < 8; index += 1) {
+    const angle = index * Math.PI / 4;
+    const x1 = cx + Math.cos(angle) * 78;
+    const y1 = cy + Math.sin(angle) * 78;
+    const x2 = cx + Math.cos(angle) * 95;
+    const y2 = cy + Math.sin(angle) * 95;
+    line(x1, y1, x2, y2, "sketch-disc-vent");
+  }
+  for (let index = 0; index < 5; index += 1) {
+    const angle = index * Math.PI * 2 / 5;
+    add("circle", { cx: cx + Math.cos(angle) * 42, cy: cy + Math.sin(angle) * 42, r: 5, class: "sketch-fastener" });
+  }
+  rect(368, 174, 62, 108, "sketch-caliper");
+  rect(352, 185, 10, 86, "sketch-brake-pad");
+  rect(438, 185, 10, 86, "sketch-brake-pad");
+  line(398, 164, 486, 113, "sketch-leader");
+  label(494, 112, "Bremssattel", "sketch-part-label");
+  line(356, 191, 494, 163, "sketch-leader");
+  label(501, 165, "Bremsbeläge", "sketch-part-label");
+  line(cx + 5, cy - 100, 464, 279, "sketch-leader");
+  label(472, 284, "innenbelüftete Scheibe", "sketch-part-label");
+  label(493, 313, "Belüftungskanäle", "sketch-dimension-text");
+  label(493, 354, "Nabe / Befestigung", "sketch-dimension-text");
+  label(493, 380, "Rotorgröße fahrzeugspezifisch", "sketch-dimension-text");
+  label(50, 430, "Explosionsschema nicht maßstäblich · Teilenummer und Drehmoment ausschließlich nach Fahrzeughersteller.", "sketch-dimension-text");
+}
+
+function drawBathSketch(builder, dimensions) {
+  const { add, line, rect, label, dimension } = builder;
+  label(65, 34, "BAD · WASCHTISCH- UND DUSCHZONE", "sketch-kicker");
+  const floor = 365;
+  line(70, floor, 730, floor, "sketch-ground");
+  rect(105, 145, 255, 180, "sketch-fill");
+  rect(115, 300, 235, 25, "sketch-timber");
+  add("ellipse", { cx: 230, cy: 245, rx: 70, ry: 22, class: "sketch-plumbing" });
+  add("path", { d: "M230 210 v-22 q0 -18 20 -18 h8", class: "sketch-plumbing" });
+  rect(455, 115, 220, 240, "sketch-shower");
+  line(455, 115, 675, 115, "sketch-structure");
+  line(565, 115, 565, 355, "sketch-structure");
+  add("path", { d: "M485 305 l160 0 M490 310 l20 12 M520 310 l20 12 M550 310 l20 12 M580 310 l20 12 M610 310 l20 12", class: "sketch-plumbing" });
+  add("circle", { cx: 630, cy: 160, r: 22, class: "sketch-shower" });
+  label(145, 130, "Waschtisch + Armatur", "sketch-part-label");
+  label(488, 96, "Duschabtrennung", "sketch-part-label");
+  label(480, 345, "Ablauf / Gefälle fachlich planen", "sketch-dimension-text");
+  dimension(105, 405, 675, 405, `Breite ${formatDimension(dimensions.width)}`);
+  label(80, 438, "Abdichtung und Anschlüsse nach Systemvorgabe; keine Ausführungsplanung.", "sketch-dimension-text");
+}
+
+function drawCarportSketch(builder, dimensions) {
+  const { line, rect, label, dimension } = builder;
+  label(52, 34, "CARPORT · SEITENANSICHT MIT ENTWÄSSERUNGSGEFÄLLE", "sketch-kicker");
+  const left = 120;
+  const right = 670;
+  const high = 132;
+  const low = 151;
+  const ground = 358;
+  line(left - 30, ground, right + 26, ground, "sketch-ground");
+  line(left, high, right, low, "sketch-rafter");
+  line(left, high + 12, right, low + 12, "sketch-structure");
+  rect(left + 15, high + 12, 17, ground - high - 12, "sketch-timber");
+  rect(right - 32, low + 12, 17, ground - low - 12, "sketch-timber");
+  line(left + 24, high + 45, left + 85, high + 45, "sketch-timber-line");
+  line(right - 24, low + 45, right - 85, low + 45, "sketch-timber-line");
+  line(left + 40, high - 18, right - 15, low - 18, "sketch-angle", { "marker-end": "url(#sketch-arrow)" });
+  label(310, 105, "Gefälle / Entwässerung", "sketch-dimension-text");
+  label(left - 10, 387, "hohe Seite", "sketch-dimension-text");
+  label(right - 68, 387, "tiefe Seite / Rinne", "sketch-dimension-text");
+  dimension(left, 420, right, 420, `Länge ${formatDimension(dimensions.depth)}`);
+  dimension(75, high, 75, ground, `Höhe ${formatDimension(dimensions.height)}`, true);
+  label(125, 449, `Breite ${formatDimension(dimensions.width)} · Gefälle projektbezogen für Dachdeckung/Entwässerung festlegen`, "sketch-dimension-text");
+}
+
 function drawGeneralSketch(builder, type, dimensions) {
   const { add, line, rect, polygon, label, callout, dimension } = builder;
   const largest = Math.max(dimensions.width, dimensions.height);
@@ -451,7 +754,17 @@ function drawGeneralSketch(builder, type, dimensions) {
   label(x, 50, "SCHEMATISCHE ANSICHT", "sketch-kicker");
   const anchors = [];
 
-  if (type.id === "table") {
+  if (type.id === "wardrobe") {
+    rect(x + 32, y + 15, w - 64, h - 20, "sketch-fill");
+    const modules = Math.max(2, Math.min(5, Math.round(dimensions.width / 60)));
+    for (let index = 1; index < modules; index += 1) {
+      const moduleX = x + 32 + (w - 64) * index / modules;
+      line(moduleX, y + 15, moduleX, y + h - 5, "sketch-structure");
+    }
+    line(x + 40, y + h * 0.57, x + w - 40, y + h * 0.57, "sketch-timber-line");
+    line(x + 40, y + h * 0.31, x + w - 40, y + h * 0.31, "sketch-muted-line");
+    anchors.push([x + 50, y + 30], [x + w * 0.45, y + h * 0.56], [x + w * 0.7, y + h * 0.31], [x + w - 45, y + h - 20]);
+  } else if (type.id === "table") {
     rect(x + 15, y + 42, w - 30, 32, "sketch-timber");
     rect(x + 42, y + 74, 28, h - 74, "sketch-timber");
     rect(x + w - 70, y + 74, 28, h - 74, "sketch-timber");
@@ -590,7 +903,17 @@ function drawGeneralSketch(builder, type, dimensions) {
 
 function createSketch(type, dimensions, query) {
   const builder = createSvgBuilder(query, type);
-  if (type.id === "roof") drawRoofSketch(builder, dimensions);
+  if (type.id === "kitchen") drawKitchenSketch(builder, dimensions);
+  else if (type.id === "electrical") drawElectricalSketch(builder);
+  else if (type.id === "vehicle") drawVehicleSketch(builder, dimensions, detectVehicleTask(query));
+  else if (type.id === "bath") drawBathSketch(builder, dimensions);
+  else if (type.id === "carport") drawCarportSketch(builder, dimensions);
+  else if (type.id === "generic") {
+    builder.label(400, 180, "Noch kein spezifischer Objekttyp erkannt", "sketch-kicker", { "text-anchor": "middle" });
+    builder.label(400, 220, "Beschreibe das konkrete Bauteil oder Gewerk genauer.", "sketch-part-label", { "text-anchor": "middle" });
+    builder.label(400, 260, "Beispiele: Küchenzeile · Schaltplan · Bremsscheibe · Treppe", "sketch-dimension-text", { "text-anchor": "middle" });
+  }
+  else if (type.id === "roof") drawRoofSketch(builder, dimensions);
   else drawGeneralSketch(builder, type, dimensions);
   return builder.svg;
 }
@@ -682,6 +1005,32 @@ function materialGuidance(type, dimensions) {
     ],
   };
   const materials = guidance[type.id];
+  if (type.id === "kitchen") {
+    return [
+      "Sockelblende und Unterschränke · nivellierbare Füße passend zum Möbelsystem",
+      "Arbeitsplatte · OKFF ca. 91 cm als Ergonomie-Richtwert, tatsächliche Arbeitshöhe anpassen",
+      "Spüle und Armatur · Ausschnitt, Wasseranschluss und Abdichtung herstellerabhängig",
+      "Kochfeld · Geräteabstände, Ausschnitt und Anschlussdaten des Herstellers beachten",
+      "Oberschränke · beispielhafte Nische ca. 55 cm; Wandtragfähigkeit und Befestigung prüfen",
+    ];
+  }
+  if (type.id === "electrical") {
+    return [
+      "Leitungsschutzschalter (LS) / FI-RCD · Auslegung durch Elektrofachkraft",
+      "Schalter- und Leuchtenanschluss · nur Funktionssymbolik",
+      "Leuchte · Anschlusswerte und Schutzart projektspezifisch",
+      "Steckdose · Stromkreis/Schutzmaßnahmen fachlich prüfen",
+      "Leiterfarben: L braun/schwarz · N blau · PE grün-gelb (Bestandsanlage prüfen)",
+    ];
+  }
+  if (type.id === "vehicle") {
+    return [
+      "Bremsscheibe · Abmessung und Teilenummer fahrzeugabhängig",
+      "Bremsbeläge · Achse, Belagform und Verschleißsensor prüfen",
+      "Bremssattel · Bauart und Rückstellverfahren herstellerabhängig",
+      "Radnabe / Befestigung · Anzugsmoment ausschließlich aus Fahrzeugdaten",
+    ];
+  }
   if (type.id === "stairs") {
     return [
       `Massivholz · Auftritt ca. ${formatDimension(dimensions.treadDepth)} als Rechenrichtwert`,
@@ -696,6 +1045,11 @@ function materialGuidance(type, dimensions) {
 
 function toolGuidance(type) {
   const recommendations = {
+    kitchen: ["Bandmaß / Laser", "Wasserwaage", "Montagewerkzeug passend zum System", "Leitungsdetektor vor Bohrungen", "Persönliche Schutzausrüstung"],
+    bath: ["Bandmaß", "Wasserwaage", "Hersteller-Montagewerkzeug", "Abdichtungssystem nach Vorgabe", "Schutzbrille und Handschuhe"],
+    wardrobe: ["Bandmaß / Laser", "Wasserwaage", "Schrauber", "Wanddetektor", "Wandbaustoffgeeignete Befestigung"],
+    electrical: ["Herstellerunterlagen", "Fachgerechte Messausrüstung (Elektrofachkraft)", "Keine Arbeiten an aktiven Anlagen"],
+    vehicle: ["Fahrzeug-spezifische Reparaturunterlagen", "Drehmomentschlüssel mit passendem Messbereich", "Fahrzeuggeeignete Hebe- und Abstützausrüstung", "Schutzbrille und Handschuhe"],
     roof: ["Bandmaß und Winkel", "Kappsäge", "Bohrmaschine/Schrauber", "Gerüst und Absturzsicherung", "Persönliche Schutzausrüstung"],
     carport: ["Bandmaß und Schnurgerüst", "Wasserwaage / Laser", "Kappsäge", "Schrauber", "Gerüst und Absturzsicherung"],
     stairs: ["Bandmaß und Treppenwinkel", "Wasserwaage", "Kappsäge", "Schrauber", "Schutzbrille und Gehörschutz"],
@@ -714,13 +1068,29 @@ function toolGuidance(type) {
 
 function renderBuildHelp(query) {
   const sketchType = detectSketchType(query);
-  const repairRequest = detectRepairRequest(query);
+  const repairRequest = detectRepairRequest(query) && !["electrical", "vehicle"].includes(sketchType?.id);
   if (!isBuildRequest(query) && selectedSearchType !== "build" && !repairRequest) {
     buildHelp.hidden = true;
     return;
   }
 
   const type = sketchType ?? sketchTypes.find((item) => item.id === "generic");
+  const genericType = type.id === "generic";
+  const vehicleTask = type.isVehicle ? detectVehicleTask(query) : null;
+  const components = !type.isVehicle
+    ? type.components
+    : vehicleTask === "oil"
+      ? ["Motor / Ölwanne", "Ölfilter", "Ablassschraube mit Dichtung", "Ölspezifikation und Füllmenge"]
+      : vehicleTask === "engine"
+        ? ["Motorbauteil", "Zündkerzen / Zündanlage", "Keilrippenriemen / Spanner", "OBD-Diagnoseanschluss"]
+        : type.components;
+  document.querySelector("#build-title").textContent = type.isElectrical
+    ? "Technischer Schaltplan"
+    : type.isVehicle
+      ? "KFZ-Bauteilansicht"
+      : type.id === "kitchen"
+        ? "Küchenzeile & CAD"
+        : "Bauidee & Skizze";
   const parsed = parseDimensions(query);
   const dimensions = {
     ...parsed,
@@ -753,6 +1123,9 @@ function renderBuildHelp(query) {
     if (parsed.depth === undefined) dimensions.depth = dimensions.stairLength;
     notes[2] = `Lauflänge: ${formatDimension(dimensions.stairLength)} (${riserCount - 1} Auftritte)`;
     notes.push(`Treppenrichtwert: ${riserCount} Steigungen à ${formatDimension(rise)} · Auftritt ${formatDimension(tread)} · Schrittmaß 2s + a = ${formatDimension(2 * rise + tread)}${2 * rise + tread < 59 || 2 * rise + tread > 65 ? " (außerhalb des üblichen Orientierungsbereichs 59–65 cm)" : ""}`);
+  }
+  if (type.id === "kitchen") {
+    notes.push("Korpus-Raster: 60 cm (Entwurfsannahme) · Arbeitshöhe OKFF: ca. 91 cm · Nische: ca. 55 cm");
   }
   if (type.id === "roof" && dimensions.rafterSpacing === undefined) {
     dimensions.rafterSpacing = 70;
@@ -790,6 +1163,9 @@ function renderBuildHelp(query) {
       ? `ca. ${dimensions.pitch}° (aus den angegebenen Maßen abgeleitet)`
       : `${pitchIsExample ? "ca. " : ""}${dimensions.pitch}°${pitchIsExample ? " (Beispiel)" : ""}`;
     notes.push(`Dachneigung: ${pitchDescription}${pitchLimited ? ` · für die Firsthöhe auf ${dimensions.pitch.toFixed(1).replace(".", ",")}° begrenzt` : ""}`);
+    notes.push("Holztragwerk nach DIN EN 1995-1-1/NA fachplanerisch nachweisen lassen");
+  } else if (type.id === "carport") {
+    notes.push("Dachgefälle und Entwässerung nach Dachsystem festlegen · Tragwerk nach DIN EN 1995-1-1/NA prüfen lassen");
   }
   const repairGuides = [
     {
@@ -820,10 +1196,20 @@ function renderBuildHelp(query) {
   const repairGuide = repairRequest ? repairGuides.find((guide) => guide.pattern.test(query)) : null;
   buildSummary.textContent = repairGuide
     ? "Reparatur-Orientierung für die Suche. Die Schritte sind allgemeine Hinweise und keine Diagnose des konkreten Produkts."
-    : `${type.title}. Maße sind illustrative Richtwerte und ersetzen keine Fachplanung.`;
-  const safetyMessage = repairGuide?.safety ?? (type.isStructural
-    ? "Tragende Bauteile, Verbindungen, Auflager, Lasten und Fundamente sind nicht statisch geprüft. Vor Ausführung projektbezogen durch qualifizierte Fachleute bemessen lassen."
-    : "");
+    : genericType
+      ? "Für diese Anfrage wurde noch kein konkreter Bauteiltyp erkannt. Es wird bewusst kein generisches Holzgestell oder Dummy-Modell angezeigt."
+      : type.isVehicle
+        ? `${vehicleTask === "oil" ? "Ölwechsel" : vehicleTask === "engine" ? "Motor-/Zündungsbauteile" : "Bremsanlage"} · schematische Darstellung; Fahrzeugdaten sind maßgeblich.`
+        : `${type.title}. Maße sind illustrative Richtwerte und ersetzen keine Fachplanung.`;
+  const electricalSafety = "5 Sicherheitsregeln (Elektrotechnik): 1. Freischalten. 2. Gegen Wiedereinschalten sichern. 3. Spannungsfreiheit allpolig feststellen. 4. Erden und kurzschließen. 5. Benachbarte, unter Spannung stehende Teile abdecken oder abschranken. Arbeiten an elektrischen Anlagen ausschließlich durch Elektrofachkräfte; dieses Funktionsschema ist kein Installationsplan.";
+  const vehicleSafety = "Sicherheits- und Drehmoment-Hinweis: Bremsen und Fahrwerk sind sicherheitsrelevant. Fahrzeug nach Herstellervorgaben sichern und Reparaturen qualifiziert ausführen lassen. Immer fahrzeug-/verbindungsspezifische Hersteller-Anzugsmomente in Nm verwenden; es gibt keinen verlässlichen Universalwert. Drehmomentschlüssel verwenden.";
+  const safetyMessage = repairGuide?.safety ?? (type.isElectrical
+    ? electricalSafety
+    : type.isVehicle
+      ? vehicleSafety
+      : type.isStructural
+        ? "Tragende Bauteile, Verbindungen, Auflager, Lasten und Fundamente sind nicht statisch geprüft. Vor Ausführung projektbezogen durch qualifizierte Fachleute bemessen lassen."
+        : "");
   buildSafety.hidden = !safetyMessage;
   buildSafety.textContent = safetyMessage;
   buildTools.replaceChildren();
@@ -832,44 +1218,72 @@ function renderBuildHelp(query) {
     item.textContent = tool;
     buildTools.append(item);
   });
-  const materialNotes = materialGuidance(type, dimensions);
+  const materialNotes = type.isVehicle && vehicleTask === "oil"
+    ? ["Motorcode, Ölspezifikation und Füllmenge aus Herstellerunterlagen", "Filtereinsatz und Dichtung passend zur Fahrzeug-Identnummer", "Schraube und Einwegdichtung nach Herstellervorgabe", "Ölstand nach Herstellerverfahren kontrollieren"]
+    : type.isVehicle && vehicleTask === "engine"
+      ? ["Motorkennbuchstabe und Bauraum anhand Fahrzeugdaten prüfen", "Zündkerzentyp und Elektrodenabstand fahrzeugspezifisch", "Riemenführung und Spannvorrichtung nach Herstellerschema", "Fehlercode mit fahrzeugspezifischer Diagnose interpretieren"]
+      : materialGuidance(type, dimensions);
   buildMaterials.replaceChildren();
-  type.components.forEach((part, index) => {
+  components.forEach((part, index) => {
     const item = document.createElement("li");
     item.textContent = `${part} — ${materialNotes[index] ?? "Material/Querschnitt projektspezifisch festlegen"}`;
     buildMaterials.append(item);
   });
   sketchBadge.textContent = repairGuide
     ? "REPARATUR-ORIENTIERUNG · PRODUKTHANDBUCH BEACHTEN"
+    : type.isElectrical
+      ? "FUNKTIONSPLAN · DIN-/IEC-SCHEMA · NICHT AUSFÜHRUNGSREIF"
+      : type.isVehicle
+        ? "KFZ-SCHEMA · FAHRZEUGDATEN / HERSTELLERWERTE PRÜFEN"
+        : type.id === "kitchen"
+          ? "KÜCHENRASTER · RICHTMASSE VOR ORT PRÜFEN"
     : type.id === "stairs"
       ? "SCHRITTMASS-ORIENTIERUNG · DIN 18065"
       : type.id === "roof" || type.id === "carport"
-        ? "HOLZBAU-RICHTMASS · STATIK PROJEKTBEZOGEN PRÜFEN"
+        ? "HOLZBAU-RICHTMASS · DIN EN 1995-1-1 · STATIK PRÜFEN"
         : "RICHTMASS · NICHT STATISCH GEPRÜFT";
-  document.querySelector(".cad-toolbar").hidden = Boolean(repairGuide);
+  document.querySelector(".cad-toolbar").hidden = Boolean(repairGuide) || type.isElectrical || genericType;
   document.querySelector("#viewer-shell").hidden = Boolean(repairGuide);
   document.querySelector(".sketch-caption").hidden = Boolean(repairGuide);
+  document.querySelector("#three-viewport").hidden = Boolean(type.isElectrical) || genericType;
+  sketchContainer.hidden = false;
   buildPartsTitle.textContent = repairGuide ? "Prüf- und Arbeitsschritte" : "Bauteile in der Skizze";
   buildMaterialsTitle.textContent = repairGuide ? "Werkzeugübersicht" : "Material- / Bauteilübersicht";
   buildMaterialsTitle.hidden = Boolean(repairGuide);
   buildMaterials.hidden = Boolean(repairGuide);
   buildToolsTitle.hidden = false;
   buildTools.hidden = false;
-  buildPartsTitle.hidden = Boolean(repairGuide);
-  buildParts.hidden = Boolean(repairGuide);
-  buildStepsTitle.textContent = repairGuide ? "Sichere Prüfschritte" : type.isStructural ? "Planungshinweise" : "Konstruktionshinweise";
+  buildPartsTitle.hidden = Boolean(repairGuide) || genericType;
+  buildParts.hidden = Boolean(repairGuide) || genericType;
+  buildMaterialsTitle.hidden = Boolean(repairGuide) || genericType;
+  buildMaterials.hidden = Boolean(repairGuide) || genericType;
+  buildToolsTitle.hidden = genericType;
+  buildTools.hidden = genericType;
+  buildStepsTitle.textContent = repairGuide ? "Sichere Prüfschritte" : genericType ? "Objekt genauer beschreiben" : type.isElectrical ? "Sicherheit & Normhinweis" : type.isVehicle ? "Fahrzeugbezogene Hinweise" : type.isStructural ? "Planungshinweise" : "Konstruktionshinweise";
   buildDimensionNote.textContent = repairGuide
     ? "Vor Arbeitsbeginn passende Energiezufuhr absperren; Hersteller- und Fachhinweise haben Vorrang."
-    : `${notes.join(" · ")} · (B) = Standard-Richtwert (Beispielmaß).`;
+    : genericType
+      ? "Ergänze Bauteil/Gewerk und wenn möglich Maße, Fahrzeugmodell oder Gerätetyp."
+      : type.isElectrical
+        ? "Funktionsschema; Leiterkennzeichnungen und Schutzmaßnahmen durch Elektrofachkraft an der konkreten Anlage verifizieren."
+        : type.isVehicle
+          ? "Bauteilskizze nicht maßstäblich · Hersteller-Teilenummern und Anzugsmomente in Nm fahrzeugbezogen prüfen."
+          : `${notes.join(" · ")} · (B) = Standard-Richtwert (Beispielmaß).`;
   if (!repairGuide) sketchContainer.replaceChildren(createSketch(type, dimensions, query));
   buildSteps.replaceChildren();
-  (repairGuide?.steps ?? type.steps ?? []).forEach((step) => {
+  (repairGuide?.steps ?? (genericType
+    ? ["Nenne das konkrete Bauteil oder Gewerk, zum Beispiel „Küchenzeile“, „Wechselschaltung“ oder „Bremsscheibe“.","Ergänze verfügbare Maße, Modellnummer oder Fahrzeugdaten für eine passende Darstellung und Suche."]
+    : type.isVehicle && vehicleTask === "oil"
+      ? ["Fahrzeug-Identnummer, Motorcode und Herstellervorgaben zu Öl, Menge und Filter heranziehen.", "Öl und Filter nur nach fahrzeugspezifischem Wartungsplan auswählen; Altöl fachgerecht entsorgen.", "Dichtheit und Ölstand nach Herstellerverfahren prüfen; bei Unsicherheit Werkstatt beauftragen."]
+      : type.isVehicle && vehicleTask === "engine"
+        ? ["Motorkennbuchstabe und Diagnosecode eindeutig ermitteln; Code nicht ohne Diagnose als Bauteilfehler werten.", "Zündkerzen- und Riemenvarianten ausschließlich anhand Fahrzeugdaten identifizieren.", "Drehmomente und Einbauverfahren der Herstellerunterlagen verwenden; Arbeiten bei Unsicherheit fachlich ausführen lassen."]
+    : type.steps ?? [])).forEach((step) => {
     const item = document.createElement("li");
     item.textContent = step;
     buildSteps.append(item);
   });
   buildParts.replaceChildren();
-  (repairGuide ? repairGuide.steps : type.components).forEach((part) => {
+  (repairGuide ? repairGuide.steps : components).forEach((part) => {
     const item = document.createElement("li");
     item.textContent = part;
     buildParts.append(item);
@@ -877,9 +1291,13 @@ function renderBuildHelp(query) {
   buildSummary.setAttribute("aria-label", `${query}. ${buildDimensionNote.textContent}`);
   buildNote.textContent = repairGuide
     ? "Allgemeine Orientierung, keine Produktdiagnose. Bei elektrischen Arbeiten, Gas, verdeckten Lecks oder Unsicherheit Fachbetrieb beauftragen."
+    : type.isElectrical
+      ? "Symbolische Übersicht, kein normgeprüfter Schalt- oder Installationsplan. DIN EN 60617 und DIN VDE 0100 sind projektbezogen durch Elektrofachkräfte anzuwenden."
+      : type.isVehicle
+        ? "Schematische Darstellung, keine Reparaturanweisung. Fahrzeugdaten, Herstellerunterlagen und Werkstatthandbuch haben Vorrang; keine pauschalen Drehmomentangaben."
     : "Konzeptskizze, kein Werk- oder Statikplan. Beispielmaße und Bauteilvorschläge sind nicht ausführungsreif. Tragende Bauteile, Verbindungen, Fundamente, Lasten und Genehmigungen müssen qualifizierte Fachleute projektbezogen prüfen.";
   buildHelp.hidden = false;
-  if (!repairGuide) {
+  if (!repairGuide && !genericType && !type.isElectrical) {
     const cadModel = {
       type: type.id,
       title: type.title,
@@ -893,10 +1311,16 @@ function renderBuildHelp(query) {
       stairLength: dimensions.stairLength,
       rafterSpacing: dimensions.rafterSpacing,
       panelThickness: dimensions.panelThickness,
-      components: type.components,
+      vehicleTask,
+      components,
     };
     window.werkfinderCadModel = cadModel;
     window.dispatchEvent(new CustomEvent("werkfinder:cad-model", { detail: cadModel }));
+  } else if (genericType || type.isElectrical) {
+    window.werkfinderCadModel = undefined;
+    if (type.isElectrical) {
+      window.dispatchEvent(new CustomEvent("werkfinder:cad-blueprint"));
+    }
   }
 }
 
@@ -931,6 +1355,12 @@ themeButtons.forEach((button) => {
       option.setAttribute("aria-pressed", String(selected));
     });
   });
+});
+
+layoutToggle.addEventListener("click", () => {
+  const mobileEnabled = document.body.classList.toggle("mobile-layout-mode");
+  layoutToggle.setAttribute("aria-pressed", String(mobileEnabled));
+  layoutToggle.textContent = mobileEnabled ? "💻 Desktop-Layout" : "📱 Mobil-Layout";
 });
 
 document.querySelectorAll(".example-chip").forEach((button) => {

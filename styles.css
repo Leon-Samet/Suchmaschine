@@ -48,6 +48,9 @@ a { color: inherit; text-decoration: none; }
 .topbar-link { display: flex; gap: 8px; align-items: center; }
 .topbar-link span { color: var(--green); font-size: 16px; }
 .topbar-actions { display: flex; align-items: center; gap: 22px; }
+.layout-toggle { min-height: 36px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 3px; background: var(--white); color: var(--green); font-size: 11px; font-weight: 700; cursor: pointer; transition: background .18s, border-color .18s, transform .18s; }
+.layout-toggle:hover { border-color: var(--green); transform: translateY(-1px); }
+.layout-toggle:focus-visible, button:focus-visible, a:focus-visible { outline: 3px solid #72c4d5; outline-offset: 2px; }
 .theme-picker { display: flex; align-items: center; gap: 5px; }
 .theme-picker > span { margin-right: 4px; color: var(--muted); font-size: 8px; font-weight: 700; letter-spacing: 1px; }
 .theme-option { padding: 6px 8px; border: 1px solid transparent; border-radius: 2px; background: transparent; color: var(--muted); font-size: 10px; cursor: pointer; }
@@ -139,6 +142,27 @@ h1 > span { color: var(--green); }
 .sketch-rafter { stroke: #ecb865; stroke-width: 8; }
 .sketch-rafter-secondary { fill: none; stroke: #ffe0a0; stroke-width: 2; }
 .sketch-timber, .sketch-timber-line { fill: #25485b; stroke: #8ac6db; stroke-width: 3; }
+.sketch-kitchen-counter { fill: #9caaad; stroke: #d3e0df; stroke-width: 2; }
+.sketch-upper-cabinet { fill: #274250; stroke: #8ac6db; stroke-width: 2.5; }
+.sketch-hob { fill: #26313a; stroke: #e3b56a; stroke-width: 2; }
+.sketch-hob-ring, .sketch-lamp-symbol, .sketch-socket-symbol { fill: #172c37; stroke: #e3b56a; stroke-width: 2; }
+.sketch-plumbing { fill: none; stroke: #72c4d5; stroke-width: 3; stroke-linecap: round; }
+.sketch-shower { fill: #24414e; stroke: #8ac6db; stroke-width: 2.5; }
+.sketch-wire-live { fill: none; stroke: #b77750; stroke-width: 5; }
+.sketch-wire-neutral { fill: none; stroke: #69a9d0; stroke-width: 5; }
+.sketch-wire-earth { fill: none; stroke: #8bc780; stroke-width: 5; stroke-dasharray: 10 4 2 4; }
+.sketch-wire-earth-yellow { fill: none; stroke: #f0d94f; stroke-width: 2; stroke-dasharray: 10 8; }
+.sketch-electrical-device { fill: #1b3443; stroke: #8ac6db; stroke-width: 2.5; }
+.sketch-electrical-symbol { fill: none; stroke: #e1edf1; stroke-width: 2.5; stroke-linecap: round; }
+.sketch-electrical-node { fill: #ffe0a0; }
+.sketch-wire-label { fill: #e1edf1; font: 700 13px "DM Sans", sans-serif; }
+.sketch-brake-disc { fill: #52636a; stroke: #c3d2d3; stroke-width: 5; }
+.sketch-brake-disc-inner { fill: #192a33; stroke: #90b6c2; stroke-width: 2; }
+.sketch-brake-hub { fill: #62767c; stroke: #d0d9d6; stroke-width: 2; }
+.sketch-disc-vent { stroke: #e3b56a; stroke-width: 3; }
+.sketch-fastener { fill: #e3b56a; }
+.sketch-caliper { fill: #8c473c; stroke: #e4a080; stroke-width: 3; }
+.sketch-brake-pad { fill: #252e32; stroke: #b7c5c3; stroke-width: 2; }
 .sketch-timber-line { fill: none; stroke-width: 7; }
 .sketch-fill { fill: #1b3443; stroke: #8ac6db; stroke-width: 3; }
 .sketch-roof-fill { fill: #1b3443; stroke: #8ac6db; stroke-width: 2; }
@@ -267,6 +291,7 @@ body[data-theme="abend"] .search-box,
 body[data-theme="abend"] .product-field,
 body[data-theme="abend"] .password-card input { background: #17211d; border-color: #47574f; color: var(--ink); }
 body[data-theme="abend"] .search-box input { color: var(--ink); }
+body[data-theme="abend"] .layout-toggle { border-color: var(--line); background: var(--white); color: var(--ink); }
 body[data-theme="abend"] .search-box input::placeholder,
 body[data-theme="abend"] .product-field::placeholder { color: #829087; }
 body[data-theme="abend"] .trade-option,
@@ -289,7 +314,9 @@ body[data-theme="abend"] .build-steps-panel h3 { color: var(--ink); }
 
 @keyframes rise-in { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 700px) {
-  .topbar { min-height: 62px; height: auto; padding: 10px 20px; gap: 10px; }
+  .topbar { min-height: 62px; height: auto; padding: 10px 20px; gap: 10px; flex-wrap: wrap; }
+  .topbar-actions { width: 100%; justify-content: space-between; gap: 7px; flex-wrap: wrap; }
+  .layout-toggle { min-height: 42px; padding: 8px; font-size: 10px; }
   .topbar-note { display: none; }
   .topbar-actions { gap: 8px; }
   .theme-picker { gap: 1px; }
@@ -344,6 +371,46 @@ body[data-theme="abend"] .build-steps-panel h3 { color: var(--ink); }
   footer { padding: 18px 20px; flex-wrap: wrap; }
   footer > span:nth-child(2) { order: 3; width: 100%; }
 }
+body.mobile-layout-mode .topbar {
+  height: auto;
+  min-height: 72px;
+  padding: 12px max(16px, 4vw);
+  flex-wrap: wrap;
+  gap: 12px;
+  transition: padding .2s ease;
+}
+body.mobile-layout-mode .topbar-actions {
+  width: 100%;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+body.mobile-layout-mode .layout-toggle { min-height: 48px; padding: 10px 14px; font-size: 13px; }
+body.mobile-layout-mode .theme-option { min-height: 44px; padding: 10px 12px; font-size: 12px; }
+body.mobile-layout-mode main { max-width: 760px; padding: 38px 16px 0; }
+body.mobile-layout-mode .intro { max-width: 100%; }
+body.mobile-layout-mode .intro-stamp { right: 6px; top: 0; width: 64px; height: 64px; }
+body.mobile-layout-mode .search-panel { margin-top: 28px; padding: 18px 14px; }
+body.mobile-layout-mode .search-box { min-height: 60px; }
+body.mobile-layout-mode .search-box input { min-height: 58px; font-size: 16px; }
+body.mobile-layout-mode .search-box .search-button { min-width: 50px; height: 48px; }
+body.mobile-layout-mode .trade-row { display: block; }
+body.mobile-layout-mode .trade-label { display: block; margin: 0 0 10px; }
+body.mobile-layout-mode .trade-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+body.mobile-layout-mode .trade-option,
+body.mobile-layout-mode .example-chip,
+body.mobile-layout-mode .copy-button { min-height: 44px; padding: 10px 12px; font-size: 12px; }
+body.mobile-layout-mode .build-layout { grid-template-columns: minmax(0, 1fr); }
+body.mobile-layout-mode .cad-toolbar { display: grid; grid-template-columns: 1fr; }
+body.mobile-layout-mode .cad-view-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+body.mobile-layout-mode .cad-view-button,
+body.mobile-layout-mode .viewer-fullscreen { min-height: 48px; padding: 10px; font-size: 12px; }
+body.mobile-layout-mode .three-viewport { height: min(68vh, 440px); min-height: 300px; }
+body.mobile-layout-mode .result-grid { grid-template-columns: minmax(0, 1fr); }
+body.mobile-layout-mode .result-card { min-height: 120px; padding: 16px; }
+body.mobile-layout-mode footer { padding: 18px 16px; flex-wrap: wrap; }
+body.mobile-layout-mode .how-section { grid-template-columns: 1fr; gap: 24px; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }

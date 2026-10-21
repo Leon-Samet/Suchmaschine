@@ -22,6 +22,7 @@ let resizeObserver;
 let resizeListenerAttached = false;
 let currentMode = "3d";
 let preferredMode = "3d";
+let automaticBlueprint = false;
 let animationFrame;
 let isReady = false;
 let loadFailureMessage;
@@ -352,6 +353,171 @@ function addBed(group, dims, timber, panel) {
   addBeam(group, [0, -dims.depth / 2, frameHeight * 0.72], [0, dims.depth / 2, frameHeight * 0.72], 0.08, timber, 0.08);
 }
 
+function addKitchen(group, dims, timber, panel) {
+  const counterHeight = Math.min(0.91, dims.height * 0.48);
+  const plinthHeight = Math.min(0.1, counterHeight * 0.12);
+  const worktopThickness = 0.04;
+  const carcassHeight = counterHeight - plinthHeight - worktopThickness;
+  const moduleCount = Math.max(2, Math.min(8, Math.round(dims.width / 0.6)));
+  const moduleWidth = dims.width / moduleCount;
+  const frontY = -dims.depth / 2 - 0.012;
+  const cabinetColor = createMaterial(0xd7ded5, { roughness: 0.62 });
+  const hardware = createMaterial(0x64777a, { metalness: 0.72, roughness: 0.28 });
+  const metal = createMaterial(0xb6c4c4, { metalness: 0.72, roughness: 0.3 });
+  const darkGlass = createMaterial(0x202b31, { metalness: 0.38, roughness: 0.25 });
+
+  addBox(group, 0, 0, plinthHeight / 2, dims.width * 0.98, dims.depth * 0.92, plinthHeight, timber);
+  for (let index = 0; index < moduleCount; index += 1) {
+    const x = -dims.width / 2 + (index + 0.5) * moduleWidth;
+    addBox(group, x, 0, plinthHeight + carcassHeight / 2, moduleWidth - 0.012, dims.depth * 0.92, carcassHeight, cabinetColor);
+    addBox(group, x, frontY, plinthHeight + carcassHeight * 0.46, moduleWidth - 0.025, 0.025, carcassHeight * 0.78, panel);
+    const drawerHeight = carcassHeight * 0.22;
+    for (let drawer = 0; drawer < 3; drawer += 1) {
+      const z = plinthHeight + carcassHeight * (0.18 + drawer * 0.28);
+      addBox(group, x, frontY - 0.018, z, moduleWidth - 0.045, 0.018, drawerHeight, cabinetColor);
+      addBox(group, x, frontY - 0.036, z, moduleWidth * 0.28, 0.012, 0.012, hardware);
+    }
+  }
+  addBox(group, 0, 0, counterHeight - worktopThickness / 2, dims.width * 1.02, dims.depth * 1.02, worktopThickness, timber);
+
+  const sinkX = -dims.width * 0.19;
+  addBox(group, sinkX, -dims.depth * 0.03, counterHeight + 0.002, Math.min(0.46, dims.width * 0.22), dims.depth * 0.58, 0.012, metal);
+  addBox(group, sinkX, -dims.depth * 0.03, counterHeight - 0.07, Math.min(0.39, dims.width * 0.19), dims.depth * 0.5, 0.13, metal);
+  addBeam(group, [sinkX + 0.16, -dims.depth * 0.08, counterHeight + 0.02], [sinkX + 0.16, -dims.depth * 0.08, counterHeight + 0.22], 0.018, hardware);
+  addBeam(group, [sinkX + 0.16, -dims.depth * 0.08, counterHeight + 0.22], [sinkX + 0.04, -dims.depth * 0.08, counterHeight + 0.22], 0.018, hardware);
+
+  const hobX = dims.width * 0.25;
+  addBox(group, hobX, 0, counterHeight + 0.008, Math.min(0.58, dims.width * 0.28), dims.depth * 0.65, 0.016, darkGlass);
+  for (let index = 0; index < 4; index += 1) {
+    const x = hobX + (index % 2 === 0 ? -0.11 : 0.11);
+    const y = (index < 2 ? -1 : 1) * dims.depth * 0.15;
+    const ring = new three.Mesh(new three.TorusGeometry(0.055, 0.006, 6, 24), hardware);
+    ring.position.set(x, y, counterHeight + 0.02);
+    group.add(ring);
+  }
+
+  const nicheHeight = 0.55;
+  const upperBottom = counterHeight + nicheHeight;
+  const upperHeight = Math.min(0.72, Math.max(0.48, dims.height - upperBottom - 0.08));
+  const upperWidth = dims.width * 0.8;
+  const upperDepth = Math.min(0.35, dims.depth * 0.58);
+  const upperStart = -upperWidth / 2;
+  const upperCount = Math.max(2, Math.min(moduleCount, Math.round(upperWidth / 0.6)));
+  const upperModule = upperWidth / upperCount;
+  for (let index = 0; index < upperCount; index += 1) {
+    const x = upperStart + (index + 0.5) * upperModule;
+    addBox(group, x, 0, upperBottom + upperHeight / 2, upperModule - 0.012, upperDepth, upperHeight, cabinetColor);
+    addBox(group, x, -upperDepth / 2 - 0.012, upperBottom + upperHeight / 2, upperModule - 0.025, 0.022, upperHeight - 0.025, panel);
+    addBox(group, x + upperModule * 0.32, -upperDepth / 2 - 0.032, upperBottom + upperHeight / 2, 0.012, 0.012, 0.11, hardware);
+  }
+  addBox(group, 0, dims.depth * 0.52, upperBottom + upperHeight / 2, upperWidth, 0.035, upperHeight * 0.88, panel);
+}
+
+function addBath(group, dims, timber, panel) {
+  const floor = 0.04;
+  const vanityWidth = Math.min(1.2, dims.width * 0.45);
+  const vanityDepth = Math.min(0.48, dims.depth * 0.28);
+  const vanityHeight = 0.78;
+  const frontY = -dims.depth * 0.32;
+  const porcelain = createMaterial(0xe8eeeb, { roughness: 0.22 });
+  const glass = createMaterial(0x9ed3df, { transparent: true, opacity: 0.32, metalness: 0.2, roughness: 0.15 });
+  addBox(group, 0, 0, floor / 2, dims.width, dims.depth, floor, panel);
+  addBox(group, -dims.width * 0.25, frontY, vanityHeight / 2 + floor, vanityWidth, vanityDepth, vanityHeight, timber);
+  addBox(group, -dims.width * 0.25, frontY - vanityDepth / 2 - 0.018, vanityHeight + floor, vanityWidth * 1.04, vanityDepth * 1.04, 0.045, porcelain);
+  const basin = new three.Mesh(new three.SphereGeometry(0.28, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), porcelain);
+  basin.position.set(-dims.width * 0.25, frontY, vanityHeight + floor + 0.01);
+  basin.scale.set(1.2, 0.75, 0.28);
+  group.add(basin);
+  addBeam(group, [-dims.width * 0.25 + 0.15, frontY, vanityHeight + floor + 0.04], [-dims.width * 0.25 + 0.15, frontY, vanityHeight + floor + 0.25], 0.018, createMaterial(0x9da9a6, { metalness: 0.75 }));
+
+  const showerWidth = Math.min(0.95, dims.width * 0.38);
+  const showerDepth = Math.min(0.9, dims.depth * 0.48);
+  const showerX = dims.width * 0.27;
+  const showerY = dims.depth * 0.18;
+  addBox(group, showerX, showerY, floor / 2, showerWidth, showerDepth, floor * 1.2, porcelain);
+  addBox(group, showerX - showerWidth / 2, showerY, dims.height * 0.42, 0.018, showerDepth, dims.height * 0.84, glass);
+  addBox(group, showerX, showerY - showerDepth / 2, dims.height * 0.42, showerWidth, 0.018, dims.height * 0.84, glass);
+  addBeam(group, [showerX + showerWidth * 0.3, showerY, dims.height * 0.7], [showerX + showerWidth * 0.3, showerY, dims.height * 0.78], 0.018, timber);
+}
+
+function addVehicleBrake(group, dims) {
+  const centerZ = dims.height * 0.52;
+  const radius = Math.max(0.12, Math.min(dims.width, dims.height) * 0.38);
+  const rotor = createMaterial(0x9da8a8, { metalness: 0.82, roughness: 0.3 });
+  const hub = createMaterial(0x59666a, { metalness: 0.75, roughness: 0.38 });
+  const pad = createMaterial(0x343a3b, { roughness: 0.88 });
+  const caliper = createMaterial(0xb5543e, { metalness: 0.38, roughness: 0.45 });
+  const disc = new three.Mesh(new three.CylinderGeometry(radius, radius, 0.075, 64), rotor);
+  disc.rotation.x = Math.PI / 2;
+  disc.position.set(-0.12, 0, centerZ);
+  disc.castShadow = true;
+  group.add(disc);
+  const hubMesh = new three.Mesh(new three.CylinderGeometry(radius * 0.27, radius * 0.27, 0.12, 32), hub);
+  hubMesh.rotation.x = Math.PI / 2;
+  hubMesh.position.set(-0.12, 0, centerZ);
+  group.add(hubMesh);
+  for (let index = 0; index < 5; index += 1) {
+    const angle = index * Math.PI * 2 / 5;
+    const hole = new three.Mesh(new three.CylinderGeometry(radius * 0.045, radius * 0.045, 0.13, 12), createMaterial(0x18252b));
+    hole.rotation.x = Math.PI / 2;
+    hole.position.set(-0.12 + Math.cos(angle) * radius * 0.43, 0, centerZ + Math.sin(angle) * radius * 0.43);
+    group.add(hole);
+  }
+  for (let index = 0; index < 10; index += 1) {
+    const angle = index * Math.PI * 2 / 10;
+    const vent = new three.Mesh(new three.BoxGeometry(0.035, 0.035, 0.16), hub);
+    vent.position.set(-0.12 + Math.cos(angle) * radius * 0.68, 0, centerZ + Math.sin(angle) * radius * 0.68);
+    vent.rotation.y = -angle;
+    group.add(vent);
+  }
+  addBox(group, radius * 0.72, -0.02, centerZ, radius * 0.48, 0.34, radius * 1.25, caliper);
+  addBox(group, radius * 0.39, -0.14, centerZ, 0.12, 0.09, radius * 1.05, pad);
+  addBox(group, radius * 0.39, 0.14, centerZ, 0.12, 0.09, radius * 1.05, pad);
+}
+
+function addVehicleOilService(group, dims) {
+  const block = createMaterial(0x53666a, { metalness: 0.34, roughness: 0.52 });
+  const filter = createMaterial(0xb8c5c2, { metalness: 0.58, roughness: 0.34 });
+  const pan = createMaterial(0x333d40, { metalness: 0.64, roughness: 0.38 });
+  const centerZ = dims.height * 0.55;
+  addBox(group, 0, 0, centerZ + dims.height * 0.08, dims.width * 0.82, dims.depth * 0.62, dims.height * 0.48, block);
+  addBox(group, 0, 0, centerZ - dims.height * 0.24, dims.width * 0.72, dims.depth * 0.68, dims.height * 0.14, pan);
+  const oilFilter = new three.Mesh(
+    new three.CylinderGeometry(dims.width * 0.09, dims.width * 0.09, dims.height * 0.28, 24),
+    filter,
+  );
+  oilFilter.position.set(dims.width * 0.28, -dims.depth * 0.16, centerZ + dims.height * 0.14);
+  group.add(oilFilter);
+  const drain = new three.Mesh(
+    new three.CylinderGeometry(0.025, 0.025, 0.08, 12),
+    filter,
+  );
+  drain.rotation.x = Math.PI / 2;
+  drain.position.set(dims.width * 0.24, -dims.depth * 0.36, centerZ - dims.height * 0.28);
+  group.add(drain);
+}
+
+function addVehicleEngineParts(group, dims) {
+  const block = createMaterial(0x59686a, { metalness: 0.48, roughness: 0.48 });
+  const ceramic = createMaterial(0xe0ddd1, { roughness: 0.42 });
+  const rubber = createMaterial(0x24292b, { roughness: 0.82 });
+  const centerZ = dims.height * 0.48;
+  addBox(group, 0, 0, centerZ, dims.width * 0.72, dims.depth * 0.62, dims.height * 0.66, block);
+  const plugCount = 4;
+  for (let index = 0; index < plugCount; index += 1) {
+    const x = -dims.width * 0.25 + index * (dims.width * 0.5 / (plugCount - 1));
+    const plug = new three.Mesh(new three.CylinderGeometry(0.027, 0.032, 0.19, 12), ceramic);
+    plug.position.set(x, -dims.depth * 0.3, centerZ + dims.height * 0.43);
+    group.add(plug);
+  }
+  const pulleyOne = new three.Mesh(new three.TorusGeometry(dims.height * 0.12, 0.025, 8, 30), block);
+  const pulleyTwo = new three.Mesh(new three.TorusGeometry(dims.height * 0.085, 0.022, 8, 30), block);
+  pulleyOne.position.set(-dims.width * 0.22, -dims.depth * 0.36, centerZ - dims.height * 0.17);
+  pulleyTwo.position.set(dims.width * 0.23, -dims.depth * 0.36, centerZ - dims.height * 0.17);
+  group.add(pulleyOne, pulleyTwo);
+  addBeam(group, [pulleyOne.position.x, pulleyOne.position.y, pulleyOne.position.z], [pulleyTwo.position.x, pulleyTwo.position.y, pulleyTwo.position.z], 0.025, rubber);
+}
+
 function addGardenhouse(group, dims, timber, panel) {
   const eaves = dims.height * 0.78;
   const roofRise = dims.height * 0.22;
@@ -393,21 +559,7 @@ function addBeamModel(group, dims, timber) {
 }
 
 function addGeneric(group, dims, timber, panel) {
-  const post = Math.max(0.04, Math.min(0.14, Math.min(dims.width, dims.depth) * 0.08));
-  const halfWidth = dims.width / 2;
-  const halfDepth = dims.depth / 2;
-  addBox(group, 0, 0, 0.04, dims.width, dims.depth, 0.08, panel);
-  [-halfWidth + post / 2, halfWidth - post / 2].forEach((x) => {
-    [-halfDepth + post / 2, halfDepth - post / 2].forEach((y) => {
-      addBox(group, x, y, dims.height / 2, post, post, dims.height, timber);
-    });
-  });
-  addBeam(group, [-halfWidth, -halfDepth, dims.height], [halfWidth, -halfDepth, dims.height], post, timber);
-  addBeam(group, [-halfWidth, halfDepth, dims.height], [halfWidth, halfDepth, dims.height], post, timber);
-  addBeam(group, [-halfWidth, -halfDepth, dims.height], [-halfWidth, halfDepth, dims.height], post, timber);
-  addBeam(group, [halfWidth, -halfDepth, dims.height], [halfWidth, halfDepth, dims.height], post, timber);
-  addBeam(group, [-halfWidth, 0, dims.height * 0.55], [halfWidth, 0, dims.height * 0.55], post * 0.7, panel);
-  addBeam(group, [-halfWidth + post, -halfDepth, post], [halfWidth - post, halfDepth, dims.height - post], post * 0.45, timber);
+  addBox(group, 0, 0, dims.height / 2, dims.width, dims.depth, dims.height, panel);
 }
 
 function makeModel(model) {
@@ -428,6 +580,14 @@ function makeModel(model) {
       case "gardenhouse": addGardenhouse(group, dims, timber, panel); break;
       case "fence": addFence(group, dims, timber, panel); break;
       case "bed": addBed(group, dims, timber, panel); break;
+      case "kitchen": addKitchen(group, dims, timber, panel); break;
+      case "bath": addBath(group, dims, timber, panel); break;
+      case "wardrobe": addShelving(group, dims, timber, panel, true); break;
+      case "vehicle":
+        if (model.vehicleTask === "oil") addVehicleOilService(group, dims);
+        else if (model.vehicleTask === "engine") addVehicleEngineParts(group, dims);
+        else addVehicleBrake(group, dims);
+        break;
       case "beam": addBeamModel(group, dims, timber); break;
       default: addGeneric(group, dims, timber, panel);
     }
@@ -657,9 +817,11 @@ window.addEventListener("werkfinder:cad-model", (event) => {
   }
   try {
     frameModel(currentModel);
-    if (currentMode === "blueprint") showBlueprint();
+    const mode = automaticBlueprint ? preferredMode : currentMode;
+    automaticBlueprint = false;
+    if (mode === "blueprint") showBlueprint();
     else {
-      setCameraMode(currentMode);
+      setCameraMode(mode);
       setStatus(`${currentModel.title} · 3D-Modell bereit`);
       status.classList.remove("is-error");
     }
@@ -671,6 +833,13 @@ window.addEventListener("werkfinder:cad-model", (event) => {
   }
 });
 
+window.addEventListener("werkfinder:cad-blueprint", () => {
+  currentModel = undefined;
+  preferredMode = "3d";
+  automaticBlueprint = true;
+  showBlueprint();
+});
+
 currentModel = window.werkfinderCadModel;
 try {
   const [THREE, controlsModule] = await Promise.all([
@@ -680,6 +849,7 @@ try {
   initialize(THREE, controlsModule.OrbitControls);
   if (currentModel) {
     frameModel(currentModel);
+    automaticBlueprint = false;
     if (preferredMode === "blueprint") showBlueprint();
     else {
       setCameraMode(preferredMode);

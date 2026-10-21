@@ -81,7 +81,8 @@ function renderResults() {
   const productModel = productModelInput.value.trim();
   currentSearch = [rawQuery, productModel].filter(Boolean).join(" ");
   resultsSummary.textContent = `Suchanfrage: „${currentSearch}“ · Öffne einen Suchweg für aktuelle Treffer.`;
-  resultGrid.replaceChildren(...searchSources[selectedSearchType].map((source) => {
+  const sources = searchSources[selectedSearchType] ?? searchSources.all;
+  resultGrid.replaceChildren(...sources.map((source) => {
     const searchTerms = source.terms(currentSearch).trim().replace(/\s+/g, " ");
     const baseUrl = source.host === "youtube" ? "https://www.youtube.com/results" : "https://www.google.com/search";
     const url = `${baseUrl}?${source.host === "youtube" ? "search_query" : "q"}=${encodeURIComponent(searchTerms)}`;
@@ -108,8 +109,13 @@ function renderResults() {
     link.append(icon, content);
     return link;
   }));
-  renderBuildHelp(rawQuery);
   results.hidden = false;
+  try {
+    renderBuildHelp(rawQuery);
+  } catch (error) {
+    console.error("Bau- oder Reparaturansicht konnte nicht erstellt werden.", error);
+    buildHelp.hidden = true;
+  }
   results.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -265,12 +271,20 @@ function parseDimensions(query) {
     if (Object.values(values).every((value) => value !== null)) Object.assign(dimensions, values);
   }
 
-  const labels = "(?:gross|groß|breit|breite|breiten|tief|tiefe|tiefen|hoch|höhe|höhen|geschosshöhe|geschosshöhen|lang|länge|längen|spannweite|firsthöhe)";
+  const labels = "(?:gross|groß|breit|breite|breiten|tief|tiefe|tiefen|hoch|höhe|höhen|geschosshöhe|geschosshöhen|lang|länge|längen|spannweite|firsthöhe|auftritt(?:stiefe)?|steigung(?:shöhe)?|sparrenabstand|plattenstärke)";
   const unit = "(?:millimeter(?:n)?|mm|zentimeter(?:n)?|cm|meter(?:n)?|m)";
   const namedDimension = new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*(${unit})?\\s*(${labels})\\b|\\b(${labels})\\s*(?:von|:|=)?\\s*(\\d+(?:[.,]\\d+)?)\\s*(${unit})?`, "gi");
   for (const match of query.matchAll(namedDimension)) {
     const label = (match[3] ?? match[4]).toLowerCase();
-    const key = label.startsWith("tief") || label.startsWith("läng") || label.startsWith("lang")
+    const key = label.startsWith("auftritt")
+      ? "treadDepth"
+      : label.startsWith("steigung")
+        ? "riserHeight"
+        : label === "sparrenabstand"
+          ? "rafterSpacing"
+          : label === "plattenstärke"
+            ? "panelThickness"
+            : label.startsWith("tief") || label.startsWith("läng") || label.startsWith("lang")
       ? "depth"
       : label.startsWith("breit") || label === "spannweite"
         ? "width"
@@ -298,8 +312,9 @@ function parseDimensions(query) {
 
 function formatDimension(value, roof = false) {
   if (roof && value >= 100) return `${(value / 100).toFixed(2).replace(".", ",")} m`;
-  const rounded = Math.round(value * 10) / 10;
-  return `${Number.isInteger(rounded) ? rounded : rounded.toString().replace(".", ",")} cm`;
+  const precision = value < 10 ? 2 : 1;
+  const rounded = Number(value.toFixed(precision));
+  return `${rounded.toString().replace(".", ",")} cm`;
 }
 
 function createSvgBuilder(query, type) {
@@ -512,7 +527,13 @@ function drawGeneralSketch(builder, type, dimensions) {
     rect(x + 45, y + 95, w - 90, h - 105, "sketch-hatched");
     rect(x + w / 2 - 27, y + h - 102, 54, 97, "sketch-timber");
     line(x + w / 2, y + 20, x + w / 2, y + 91, "sketch-rafter-secondary");
-    anchors.push([x + w / 2, y + 55], [x + 65, y + 135], [x + w - 55, y + h - 35], [x + w / 2, y + h - 55]);
+    anchors.push(
+      [x + w / 2, y + 55],
+      [x + 65, y + 135],
+      [x + w - 55, y + h - 35],
+      [x + w / 2, y + h - 55],
+      [x + 70, y + h - 5],
+    );
   } else if (type.id === "fence") {
     const left = x + 35;
     const right = x + w - 35;
@@ -599,8 +620,8 @@ function materialGuidance(type, dimensions) {
       "Betonfundamente und zugelassene Pfostenträger; Bemessung erforderlich",
     ],
     stairs: [
-      `Massivholz · Auftritt ca. ${formatDimension(dimensions.treadDepth)} als Rechenrichtwert`,
-      `Holz/Plattenwerkstoff · Setzstufen passend zur Steigung ${formatDimension(dimensions.riserHeight)}`,
+      "Massivholz · Auftritt als Rechenrichtwert",
+      "Holz/Plattenwerkstoff · Setzstufen passend zur berechneten Steigung",
       "Konstruktionsholz · Wangenquerschnitt statisch und geometrisch bemessen",
       "Holz/Metall · Handlauf und Geländer nach Nutzung und Bauanforderung",
     ],
@@ -660,9 +681,35 @@ function materialGuidance(type, dimensions) {
       "Zugelassene Verbindungsmittel · Randabstände und Herstellerangaben beachten",
     ],
   };
-  return guidance[type.id] ?? type.components.map(() => (
+  const materials = guidance[type.id];
+  if (type.id === "stairs") {
+    return [
+      `Massivholz · Auftritt ca. ${formatDimension(dimensions.treadDepth)} als Rechenrichtwert`,
+      `Holz/Plattenwerkstoff · Setzstufen passend zur Steigung ${formatDimension(dimensions.riserHeight)}`,
+      ...materials.slice(2),
+    ];
+  }
+  return materials ?? type.components.map(() => (
     "Material und Dimensionierung passend zu Nutzung und Belastung fachlich festlegen"
   ));
+}
+
+function toolGuidance(type) {
+  const recommendations = {
+    roof: ["Bandmaß und Winkel", "Kappsäge", "Bohrmaschine/Schrauber", "Gerüst und Absturzsicherung", "Persönliche Schutzausrüstung"],
+    carport: ["Bandmaß und Schnurgerüst", "Wasserwaage / Laser", "Kappsäge", "Schrauber", "Gerüst und Absturzsicherung"],
+    stairs: ["Bandmaß und Treppenwinkel", "Wasserwaage", "Kappsäge", "Schrauber", "Schutzbrille und Gehörschutz"],
+    table: ["Bandmaß und Winkel", "Kappsäge oder Formatkreissäge", "Schleifgerät", "Schraubzwingen", "Schrauber"],
+    shelf: ["Bandmaß und Winkel", "Säge", "Bohrmaschine/Schrauber", "Wasserwaage", "Wanddetektor für Befestigungspunkte"],
+    cabinet: ["Bandmaß und Winkel", "Säge", "Bohrmaschine/Schrauber", "Schraubzwingen", "Beschlagbohrer"],
+    chair: ["Bandmaß und Winkel", "Säge", "Schraubzwingen", "Schleifgerät", "Schrauber"],
+    wall: ["Leitungsdetektor", "Bandmaß und Wasserwaage", "Blechschere oder Kappsäge passend zum System", "Schrauber", "Schutzbrille und Atemschutz nach Material"],
+    bed: ["Bandmaß und Winkel", "Säge", "Bohrmaschine/Schrauber", "Schraubzwingen", "Schleifgerät"],
+    gardenhouse: ["Bandmaß und Schnurgerüst", "Wasserwaage / Laser", "Kappsäge", "Schrauber", "Gerüst und Absturzsicherung"],
+    fence: ["Bandmaß und Richtschnur", "Erdbohrer", "Wasserwaage", "Säge", "Schrauber"],
+    beam: ["Bandmaß und Winkel", "Kappsäge", "Hebezeug passend zur Last", "Schutzbrille und Gehörschutz"],
+  };
+  return recommendations[type.id] ?? ["Bandmaß", "Wasserwaage", "Winkel", "passendes Montagewerkzeug", "Persönliche Schutzausrüstung"];
 }
 
 function renderBuildHelp(query) {
@@ -687,9 +734,18 @@ function renderBuildHelp(query) {
   ];
   if (type.id === "stairs") {
     const requestedHeight = dimensions.height;
-    const riserCount = dimensions.stepCount ?? Math.max(2, Math.round(requestedHeight / 17.5));
-    const rise = requestedHeight / riserCount;
-    const tread = Math.max(0, 63 - 2 * rise);
+    const riserCount = dimensions.stepCount ?? Math.max(2, Math.round((parsed.height ?? requestedHeight) / 17.5));
+    const calculatedRise = requestedHeight / riserCount;
+    const rise = parsed.height === undefined && dimensions.riserHeight !== undefined
+      ? dimensions.riserHeight
+      : calculatedRise;
+    const tread = dimensions.treadDepth ?? Math.max(0, 63 - 2 * rise);
+    if (parsed.height === undefined) {
+      dimensions.height = rise * riserCount;
+      notes[1] = `Geschosshöhe: ${formatDimension(dimensions.height)}${dimensions.isExample.height ? " (Beispiel)" : ""}`;
+    } else if (dimensions.riserHeight !== undefined && Math.abs(dimensions.riserHeight - calculatedRise) > 0.1) {
+      notes.push(`Hinweis: angegebene Steigung ${formatDimension(dimensions.riserHeight)} weicht von der aus Geschosshöhe/Stufenzahl berechneten Steigung ab.`);
+    }
     dimensions.stepCount = riserCount;
     dimensions.riserHeight = rise;
     dimensions.treadDepth = tread;
@@ -698,21 +754,42 @@ function renderBuildHelp(query) {
     notes[2] = `Lauflänge: ${formatDimension(dimensions.stairLength)} (${riserCount - 1} Auftritte)`;
     notes.push(`Treppenrichtwert: ${riserCount} Steigungen à ${formatDimension(rise)} · Auftritt ${formatDimension(tread)} · Schrittmaß 2s + a = ${formatDimension(2 * rise + tread)}${2 * rise + tread < 59 || 2 * rise + tread > 65 ? " (außerhalb des üblichen Orientierungsbereichs 59–65 cm)" : ""}`);
   }
+  if (type.id === "roof" && dimensions.rafterSpacing === undefined) {
+    dimensions.rafterSpacing = 70;
+    dimensions.isExample.rafterSpacing = true;
+    notes.push("Sparrenabstand: ca. 70 cm (Richtwert)");
+  } else if (dimensions.rafterSpacing !== undefined) {
+    notes.push(`Sparrenabstand: ${formatDimension(dimensions.rafterSpacing)}`);
+  }
+  if (type.id === "table" && dimensions.panelThickness === undefined) {
+    dimensions.panelThickness = 3;
+    dimensions.isExample.panelThickness = true;
+    notes.push("Plattenstärke: ca. 3 cm (Richtwert)");
+  } else if (type.id === "table" && dimensions.panelThickness !== undefined) {
+    notes.push(`Plattenstärke: ${formatDimension(dimensions.panelThickness)}`);
+  }
   if (type.id === "roof") {
     const pitchIsExample = dimensions.pitch === undefined;
+    let pitchDerived = false;
     if (pitchIsExample && (parsed.width || parsed.height)) {
       dimensions.pitch = Math.round(Math.atan(Math.max(1, dimensions.height - 250) / (dimensions.width / 2)) * 180 / Math.PI);
       dimensions.isExample.pitch = false;
-      notes.push(`Dachneigung: ca. ${dimensions.pitch}° (aus den angegebenen Maßen abgeleitet)`);
+      pitchDerived = true;
     } else {
       dimensions.pitch ??= type.defaults.pitch;
       dimensions.isExample.pitch = pitchIsExample;
-      notes.push(`Dachneigung: ${pitchIsExample ? "ca. " : ""}${dimensions.pitch}°${pitchIsExample ? " (Beispiel)" : ""}`);
     }
-    if (dimensions.pitch < 5 || dimensions.pitch > 80) {
-      notes.push("Hinweis: Dachneigung außerhalb des dargestellten Modellbereichs (5–80°); fachlich prüfen.");
-      dimensions.pitch = Math.max(5, Math.min(80, dimensions.pitch));
+    const maxGeometricPitch = Math.atan(Math.max(0, dimensions.height - 50) / (dimensions.width / 2)) * 180 / Math.PI;
+    const supportedPitch = Math.max(1, Math.min(80, maxGeometricPitch));
+    let pitchLimited = false;
+    if (dimensions.pitch > supportedPitch) {
+      dimensions.pitch = supportedPitch;
+      pitchLimited = true;
     }
+    const pitchDescription = pitchDerived
+      ? `ca. ${dimensions.pitch}° (aus den angegebenen Maßen abgeleitet)`
+      : `${pitchIsExample ? "ca. " : ""}${dimensions.pitch}°${pitchIsExample ? " (Beispiel)" : ""}`;
+    notes.push(`Dachneigung: ${pitchDescription}${pitchLimited ? ` · für die Firsthöhe auf ${dimensions.pitch.toFixed(1).replace(".", ",")}° begrenzt` : ""}`);
   }
   const repairGuides = [
     {
@@ -750,9 +827,7 @@ function renderBuildHelp(query) {
   buildSafety.hidden = !safetyMessage;
   buildSafety.textContent = safetyMessage;
   buildTools.replaceChildren();
-  (repairGuide?.tools ?? (type.id === "stairs"
-    ? ["Bandmaß und Winkel", "Wasserwaage", "Kappsäge", "Bohrmaschine / Schrauber", "Persönliche Schutzausrüstung"]
-    : ["Bandmaß", "Wasserwaage", "Winkel", "passendes Säge- und Montagewerkzeug", "Persönliche Schutzausrüstung"])).forEach((tool) => {
+  (repairGuide?.tools ?? toolGuidance(type)).forEach((tool) => {
     const item = document.createElement("li");
     item.textContent = tool;
     buildTools.append(item);
@@ -816,6 +891,8 @@ function renderBuildHelp(query) {
       riserHeight: dimensions.riserHeight,
       treadDepth: dimensions.treadDepth,
       stairLength: dimensions.stairLength,
+      rafterSpacing: dimensions.rafterSpacing,
+      panelThickness: dimensions.panelThickness,
       components: type.components,
     };
     window.werkfinderCadModel = cadModel;
@@ -871,7 +948,8 @@ document.querySelector("#copy-query").addEventListener("click", async (event) =>
     window.setTimeout(() => {
       event.currentTarget.innerHTML = '<span aria-hidden="true">▢</span> Anfrage kopieren';
     }, 1600);
-  } catch {
+  } catch (error) {
+    console.error("Suchanfrage konnte nicht in die Zwischenablage kopiert werden.", error);
     resultsSummary.textContent = `Suchanfrage: „${currentSearch}“ · Kopieren ist in diesem Browser nicht verfügbar.`;
   }
 });

@@ -15,6 +15,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { scroll-behavior: smooth; }
 body { margin: 0; background: var(--paper); color: var(--ink); }
 button, input { font: inherit; }
@@ -176,6 +177,23 @@ h1 > span { color: var(--green); }
 body[data-theme="abend"] .cad-view-button,
 body[data-theme="abend"] .viewer-fullscreen { border-color: var(--line); background: var(--white); color: var(--ink); }
 body[data-theme="abend"] .cad-view-button.is-selected { background: #24372d; color: #b0ddc0; }
+.build-help,
+body[data-theme="abend"] .build-help { border-color: #2e4856; background: #101a22; color: #d8e4e9; }
+.build-help .build-heading h2,
+.build-help .build-steps-panel h3 { color: #e6f0f2; }
+.build-help .build-summary,
+.build-help .build-note,
+.build-help .build-steps-panel li,
+.build-help .build-tools li { color: #b4c4ca; }
+.build-help .dimension-note { color: #9bd0c5; }
+.build-help .build-steps-panel { border-color: #2e4856; background: #16232c; }
+.build-help .cad-view-button,
+.build-help .viewer-fullscreen { border-color: #405864; background: #1b2b35; color: #d8e4e9; }
+.build-help .cad-view-button.is-selected { border-color: #76bda6; background: #203c3c; color: #b8e3d4; }
+.build-help .cad-view-button:hover,
+.build-help .viewer-fullscreen:hover { border-color: #8ac6db; }
+.build-help .sketch-badge { border-color: #53676b; color: #e4c98e; }
+.build-safety { border-color: #8b554e; background: #301f22; color: #ffd7cd; }
 .result-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .result-card { min-height: 123px; padding: 17px 18px; display: flex; gap: 15px; align-items: flex-start; background: var(--white); border: 1px solid #e4e5de; border-radius: 3px; transition: border-color .18s, transform .18s; }
 .result-card:hover { border-color: #9eafa0; transform: translateY(-2px); }
@@ -244,9 +262,7 @@ body[data-theme="abend"] .results-note,
 body[data-theme="abend"] footer { color: var(--muted); }
 body[data-theme="abend"] .search-panel,
 body[data-theme="abend"] .result-card,
-body[data-theme="abend"] .password-card,
-body[data-theme="abend"] .build-help,
-body[data-theme="abend"] .build-steps-panel { background: var(--white); border-color: var(--line); }
+body[data-theme="abend"] .password-card { background: var(--white); border-color: var(--line); }
 body[data-theme="abend"] .search-box,
 body[data-theme="abend"] .product-field,
 body[data-theme="abend"] .password-card input { background: #17211d; border-color: #47574f; color: var(--ink); }

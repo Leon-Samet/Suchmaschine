@@ -18,7 +18,10 @@ let controls;
 let modelGroup;
 let modelBounds;
 let currentModel;
+let resizeObserver;
+let resizeListenerAttached = false;
 let currentMode = "3d";
+let preferredMode = "3d";
 let animationFrame;
 let isReady = false;
 let loadFailureMessage;
@@ -26,6 +29,8 @@ let loadFailureMessage;
 function showBlueprint(message) {
   viewport.hidden = true;
   blueprint.hidden = false;
+  controls?.dispose();
+  controls = undefined;
   if (animationFrame !== undefined) {
     cancelAnimationFrame(animationFrame);
     animationFrame = undefined;
@@ -53,12 +58,77 @@ function setStatus(message, isError = false) {
   status.hidden = false;
 }
 
+function disposeObjectTree(root) {
+  root?.traverse((object) => {
+    object.geometry?.dispose();
+    if (Array.isArray(object.material)) object.material.forEach((material) => material.dispose());
+    else object.material?.dispose();
+  });
+}
+
+function releaseViewer() {
+  controls?.dispose();
+  controls = undefined;
+  resizeObserver?.disconnect();
+  resizeObserver = undefined;
+  if (resizeListenerAttached) {
+    window.removeEventListener("resize", resizeRenderer);
+    resizeListenerAttached = false;
+  }
+  if (modelGroup) {
+    scene?.remove(modelGroup);
+    disposeObjectTree(modelGroup);
+    modelGroup = undefined;
+  }
+  renderer?.dispose();
+  renderer = undefined;
+  isReady = false;
+}
+
 function dimensionsInMeters(model) {
-  return {
-    width: Math.max(0.1, Math.min(30, model.width / 100)),
-    height: Math.max(0.1, Math.min(30, model.height / 100)),
-    depth: Math.max(0.1, Math.min(30, model.depth / 100)),
+  const meters = (value) => {
+    const centimeters = Number(value);
+    if (!Number.isFinite(centimeters) || centimeters <= 0) return 1;
+    return Math.max(0.1, Math.min(30, centimeters / 100));
   };
+  return {
+    width: meters(model.width),
+    height: meters(model.height),
+    depth: meters(model.depth),
+  };
+}
+
+function normalizeModel(model) {
+  if (!model || typeof model !== "object") throw new TypeError("CAD-Modell fehlt.");
+  const dimensions = ["width", "height", "depth"];
+  const normalized = { ...model };
+  for (const key of dimensions) {
+    const value = Number(model[key]);
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new RangeError(`Ungültiges CAD-Maß: ${key}.`);
+    }
+    if (value < 1 || value > 3000) {
+      throw new RangeError(`CAD-Maß außerhalb des unterstützten Darstellungsbereichs: ${key}.`);
+    }
+    normalized[key] = value;
+  }
+  normalized.title = typeof model.title === "string" && model.title.trim()
+    ? model.title.trim().slice(0, 120)
+    : "Werkstück · Konzeptmodell";
+  normalized.pitch = Number.isFinite(Number(model.pitch)) ? Number(model.pitch) : 35;
+  normalized.stepCount = Number.isInteger(Number(model.stepCount))
+    ? Math.min(40, Math.max(2, Number(model.stepCount)))
+    : undefined;
+  normalized.riserHeight = Number.isFinite(Number(model.riserHeight)) && Number(model.riserHeight) > 0
+    ? Number(model.riserHeight)
+    : undefined;
+  normalized.treadDepth = Number.isFinite(Number(model.treadDepth)) && Number(model.treadDepth) > 0
+    ? Number(model.treadDepth)
+    : undefined;
+  normalized.stairLength = Number.isFinite(Number(model.stairLength)) && Number(model.stairLength) > 0
+    ? Number(model.stairLength)
+    : undefined;
+  return normalized;
 }
 
 function createMaterial(color, options = {}) {
@@ -114,18 +184,19 @@ function addBeam(group, start, end, thickness, material, width = thickness) {
 function addRoof(group, dims, timber, panel) {
   const halfWidth = dims.width / 2;
   const halfDepth = dims.depth / 2;
-  const pitch = Math.max(5, Math.min(80, Number(currentModel.pitch) || 35)) * Math.PI / 180;
+  const pitch = Math.max(1, Math.min(80, Number(currentModel.pitch) || 35)) * Math.PI / 180;
   const rise = halfWidth * Math.tan(pitch);
-  const eaves = Math.max(1.8, dims.height - rise);
+  const eaves = Math.max(0.5, dims.height - rise);
   const ridge = eaves + rise;
-  const rafters = Math.max(3, Math.min(7, Math.round(dims.depth / 1.4)));
+  const spacing = Math.max(0.4, Math.min(1.2, Number(currentModel.rafterSpacing) / 100 || 0.7));
+  const rafters = Math.max(3, Math.min(30, Math.ceil(dims.depth / spacing) + 1));
   const positions = Array.from({ length: rafters }, (_, index) => (
     rafters === 1 ? 0 : -halfDepth + index * (dims.depth / (rafters - 1))
   ));
 
   positions.forEach((y) => {
-    addBeam(group, [-halfWidth, y, eaves], [0, y, ridge], 0.14, timber);
-    addBeam(group, [0, y, ridge], [halfWidth, y, eaves], 0.14, timber);
+    addBeam(group, [-halfWidth, y, eaves], [0, y, ridge], 0.08, timber, 0.18);
+    addBeam(group, [0, y, ridge], [halfWidth, y, eaves], 0.08, timber, 0.18);
     addBeam(group, [-halfWidth, y, eaves], [halfWidth, y, eaves], 0.12, timber);
   });
   addBeam(group, [0, -halfDepth, ridge], [0, halfDepth, ridge], 0.2, timber, 0.22);
@@ -178,11 +249,11 @@ function addCarport(group, dims, timber, panel) {
   addEdgeOverlay(roof);
 }
 
-function addTable(group, dims, timber, panel, isChair = false) {
+function addTable(group, dims, model, timber, panel, isChair = false) {
   const topHeight = isChair ? dims.height * 0.52 : dims.height;
   const topWidth = dims.width;
   const topDepth = dims.depth;
-  const slabThickness = isChair ? 0.045 : 0.03;
+  const slabThickness = isChair ? 0.045 : Math.max(0.02, Math.min(0.08, Number(model.panelThickness) / 100 || 0.03));
   addBox(group, 0, 0, topHeight - slabThickness / 2, topWidth, topDepth, slabThickness, panel);
   const legHeight = Math.max(0.25, topHeight - slabThickness);
   const legWidth = Math.max(0.045, Math.min(0.1, topWidth * 0.07));
@@ -229,7 +300,7 @@ function addStairs(group, dims, model, timber, panel) {
     const top = (index + 1) * (dims.height / count);
     addBox(group, 0, y, top - treadThickness / 2, dims.width, treadRun * 0.98, treadThickness, panel);
     const riserDepth = Math.max(0.035, Math.min(0.07, treadThickness));
-    addBox(group, 0, startY + (index + 1) * treadRun, top - dims.height / count / 2, dims.width, riserDepth, dims.height / count, timber);
+    addBox(group, 0, startY + index * treadRun, top - dims.height / count / 2, dims.width, riserDepth, dims.height / count, timber);
   }
   const stringerX = dims.width * 0.43;
   const handrailHeight = Math.min(1, Math.max(0.85, dims.height * 0.34));
@@ -341,35 +412,40 @@ function addGeneric(group, dims, timber, panel) {
 
 function makeModel(model) {
   const group = new three.Group();
-  const dims = dimensionsInMeters(model);
-  const timber = createMaterial(0xc78c50);
-  const panel = createMaterial(0x78b6c8, { metalness: 0.12, roughness: 0.55 });
-  switch (model.type) {
-    case "roof": addRoof(group, dims, timber, panel); break;
-    case "carport": addCarport(group, dims, timber, panel); break;
-    case "table": addTable(group, dims, timber, panel); break;
-    case "chair": addTable(group, dims, timber, panel, true); break;
-    case "shelf": addShelving(group, dims, timber, panel); break;
-    case "cabinet": addShelving(group, dims, timber, panel, true); break;
-    case "stairs": addStairs(group, dims, model, timber, panel); break;
-    case "wall": addWall(group, dims, timber, panel); break;
-    case "gardenhouse": addGardenhouse(group, dims, timber, panel); break;
-    case "fence": addFence(group, dims, timber, panel); break;
-    case "bed": addBed(group, dims, timber, panel); break;
-    case "beam": addBeamModel(group, dims, timber); break;
-    default: addGeneric(group, dims, timber, panel);
+  try {
+    const dims = dimensionsInMeters(model);
+    const timber = createMaterial(0xc78c50);
+    const panel = createMaterial(0x78b6c8, { metalness: 0.12, roughness: 0.55 });
+    switch (model.type) {
+      case "roof": addRoof(group, dims, timber, panel); break;
+      case "carport": addCarport(group, dims, timber, panel); break;
+      case "table": addTable(group, dims, model, timber, panel); break;
+      case "chair": addTable(group, dims, model, timber, panel, true); break;
+      case "shelf": addShelving(group, dims, timber, panel); break;
+      case "cabinet": addShelving(group, dims, timber, panel, true); break;
+      case "stairs": addStairs(group, dims, model, timber, panel); break;
+      case "wall": addWall(group, dims, timber, panel); break;
+      case "gardenhouse": addGardenhouse(group, dims, timber, panel); break;
+      case "fence": addFence(group, dims, timber, panel); break;
+      case "bed": addBed(group, dims, timber, panel); break;
+      case "beam": addBeamModel(group, dims, timber); break;
+      default: addGeneric(group, dims, timber, panel);
+    }
+    return { group, dims };
+  } catch (error) {
+    group.traverse((object) => {
+      object.geometry?.dispose();
+      if (Array.isArray(object.material)) object.material.forEach((material) => material.dispose());
+      else object.material?.dispose();
+    });
+    throw error;
   }
-  return { group, dims };
 }
 
 function frameModel(model) {
   if (modelGroup) {
     scene.remove(modelGroup);
-    modelGroup.traverse((object) => {
-      object.geometry?.dispose();
-      if (Array.isArray(object.material)) object.material.forEach((material) => material.dispose());
-      else object.material?.dispose();
-    });
+    disposeObjectTree(modelGroup);
   }
   const result = makeModel(model);
   modelGroup = result.group;
@@ -381,9 +457,13 @@ function frameModel(model) {
 function setCameraMode(mode) {
   if (!isReady || !currentModel) {
     if (mode === "blueprint") showBlueprint();
-    else showBlueprint("3D-Viewer nicht verfügbar – die technische SVG-Zeichnung bleibt nutzbar.");
+    else {
+      preferredMode = mode;
+      showBlueprint("3D-Viewer wird vorbereitet – die technische SVG-Zeichnung bleibt verfügbar.");
+    }
     return;
   }
+  preferredMode = mode;
   currentMode = mode;
   viewport.hidden = false;
   blueprint.hidden = true;
@@ -405,7 +485,14 @@ function setCameraMode(mode) {
   if (mode === "top") camera.up.set(0, 1, 0);
   if (camera.isOrthographicCamera) camera.zoom = 1;
   if (mode === "3d") {
-    camera.position.copy(center).add(new three.Vector3(maxDimension * 1.8, -maxDimension * 1.8, maxDimension * 1.3));
+    const radius = Math.max(modelBounds.getBoundingSphere(new three.Sphere()).radius, 0.2);
+    const verticalHalfFov = three.MathUtils.degToRad(camera.fov / 2);
+    const horizontalHalfFov = Math.atan(Math.tan(verticalHalfFov) * Math.max(viewport.clientWidth / Math.max(viewport.clientHeight, 1), 0.25));
+    const distance = radius / Math.sin(Math.min(verticalHalfFov, horizontalHalfFov)) * 1.15;
+    camera.position.copy(center).add(new three.Vector3(distance * 0.65, -distance * 0.65, distance * 0.48));
+    camera.near = Math.max(0.01, distance / 1000);
+    camera.far = Math.max(1000, distance * 20);
+    camera.updateProjectionMatrix();
   } else {
     const aspect = Math.max(0.25, viewport.clientWidth / Math.max(viewport.clientHeight, 1));
     const halfHeight = Math.max(viewHeight, viewWidth / aspect) * 0.62;
@@ -426,8 +513,8 @@ function setCameraMode(mode) {
   controls.enableRotate = mode === "3d";
   controls.enableZoom = true;
   controls.screenSpacePanning = true;
-  controls.minDistance = Math.max(0.15, maxDimension * 0.08);
-  controls.maxDistance = maxDimension * 20;
+  controls.minDistance = Math.max(0.15, maxDimension * 0.12);
+  controls.maxDistance = maxDimension * 12;
   controls.minZoom = 0.55;
   controls.maxZoom = 12;
   controls.target.copy(center);
@@ -468,7 +555,9 @@ function animate() {
       if (dampingContinues) animate();
     } catch (error) {
       console.error("CAD-Ansicht konnte nicht gerendert werden.", error);
-      showBlueprint("3D-Rendering nicht verfügbar – die technische SVG-Zeichnung bleibt nutzbar.");
+      loadFailureMessage = "3D-Rendering nicht verfügbar – die technische SVG-Zeichnung bleibt nutzbar.";
+      releaseViewer();
+      showBlueprint(loadFailureMessage);
     }
   });
 }
@@ -504,8 +593,13 @@ function initialize(THREE, OrbitControls) {
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
   controls.screenSpacePanning = true;
-  if ("ResizeObserver" in window) new ResizeObserver(resizeRenderer).observe(viewport);
-  else window.addEventListener("resize", resizeRenderer);
+  if ("ResizeObserver" in window) {
+    resizeObserver = new ResizeObserver(resizeRenderer);
+    resizeObserver.observe(viewport);
+  } else {
+    window.addEventListener("resize", resizeRenderer);
+    resizeListenerAttached = true;
+  }
   isReady = true;
   resizeRenderer();
 }
@@ -514,6 +608,7 @@ modeButtons.forEach((button) => {
   button.addEventListener("click", () => {
     const mode = button.dataset.viewMode;
     if (mode === "blueprint") {
+      preferredMode = "blueprint";
       showBlueprint();
       return;
     }
@@ -548,7 +643,13 @@ document.addEventListener("fullscreenchange", () => {
 });
 
 window.addEventListener("werkfinder:cad-model", (event) => {
-  currentModel = event.detail;
+  try {
+    currentModel = normalizeModel(event.detail);
+  } catch (error) {
+    console.error("Ungültige CAD-Modellparameter.", error);
+    showBlueprint("Modellmaße konnten nicht verarbeitet werden – die Suchergebnisse bleiben verfügbar.");
+    return;
+  }
   blueprint.hidden = currentMode !== "blueprint";
   if (!isReady) {
     showBlueprint(loadFailureMessage ?? "Technische Zeichnung aktiv – 3D-Viewer wird geladen …");
@@ -564,7 +665,9 @@ window.addEventListener("werkfinder:cad-model", (event) => {
     }
   } catch (error) {
     console.error("CAD-Modell konnte nicht erstellt werden.", error);
-    showBlueprint("Das 3D-Modell konnte nicht erstellt werden – die technische SVG-Zeichnung bleibt nutzbar.");
+    loadFailureMessage = "Das 3D-Modell konnte nicht erstellt werden – die technische SVG-Zeichnung bleibt nutzbar.";
+    releaseViewer();
+    showBlueprint(loadFailureMessage);
   }
 });
 
@@ -577,11 +680,15 @@ try {
   initialize(THREE, controlsModule.OrbitControls);
   if (currentModel) {
     frameModel(currentModel);
-    setCameraMode("3d");
-    setStatus(`${currentModel.title} · 3D-Modell bereit`);
+    if (preferredMode === "blueprint") showBlueprint();
+    else {
+      setCameraMode(preferredMode);
+      setStatus(`${currentModel.title} · 3D-Modell bereit`);
+    }
   }
 } catch (error) {
   console.error("Three.js oder WebGL ist nicht verfügbar.", error);
+  releaseViewer();
   loadFailureMessage = "3D-Viewer nicht verfügbar (CDN oder WebGL) – die technische SVG-Zeichnung bleibt nutzbar.";
   showBlueprint(loadFailureMessage);
 }

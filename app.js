@@ -31,7 +31,6 @@ const productModelInput = document.querySelector("#product-model");
 const buildHelp = document.querySelector("#build-help");
 const buildSummary = document.querySelector("#build-summary");
 const buildDimensionNote = document.querySelector("#build-dimension-note");
-const sketchOptions = document.querySelector("#sketch-options");
 const sketchContainer = document.querySelector("#sketch-container");
 const buildStepsTitle = document.querySelector("#build-steps-title");
 const buildSteps = document.querySelector("#build-steps");
@@ -106,42 +105,8 @@ function renderResults() {
   results.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-const sketchExamples = {
-  regal: {
-    label: "Regal",
-    dimensions: { width: 80, depth: 30, height: 180 },
-    materials: "Holzplatten oder geeignetes Konstruktionsholz; passende Schrauben und Winkel",
-    steps: ["Standort und Belastung festlegen; Seiten, Böden und Rückwand planen.", "Bauteile anhand der Maße zuschneiden und Kanten prüfen.", "Böden rechtwinklig verbinden; Rückwand zur Aussteifung befestigen.", "Standfestigkeit prüfen und ein hohes Regal fachgerecht an der Wand sichern."],
-  },
-  pflanzkasten: {
-    label: "Pflanzkasten",
-    dimensions: { width: 80, depth: 30, height: 40 },
-    materials: "Witterungsbeständiges Holz, geeignete Schrauben und eine passende Innenauskleidung",
-    steps: ["Einsatzort und gewünschtes Volumen bestimmen; Wasserablauf mit einplanen.", "Bretter für Seiten und Boden ablängen und Kanten glätten.", "Seiten rechtwinklig verbinden und Boden mit Ablauföffnungen befestigen.", "Holz für den Außeneinsatz schützen und eine geeignete Innenauskleidung einsetzen."],
-  },
-  werkbank: {
-    label: "Arbeitstisch",
-    dimensions: { width: 120, depth: 60, height: 90 },
-    materials: "Stabile Kanthölzer, eine belastbare Arbeitsplatte und passende Verbindungsmittel",
-    steps: ["Arbeitshöhe, Platzbedarf und erwartete Belastung festlegen.", "Einen verwindungssteifen Rahmen mit gleich langen Beinen planen.", "Rahmen rechtwinklig montieren und die Arbeitsplatte sicher befestigen.", "Stand und Verbindungen prüfen; schwere oder bewegliche Nutzung gesondert absichern."],
-  },
-  allgemein: {
-    label: "Allgemeine Idee",
-    dimensions: { width: 100, depth: 60, height: 80 },
-    materials: "Materialien und Verbindungen passend zum konkreten Gegenstand auswählen",
-    steps: ["Den Zweck des Gegenstands und den späteren Einsatz festlegen.", "Maße, Bauteile und Verbindungen vor dem Bau in einer genaueren Zeichnung planen.", "Material passend zu Belastung, Umgebung und Verwendung auswählen.", "Schrittweise montieren und Stabilität sowie Sicherheit vor der Nutzung prüfen."],
-  },
-};
-
-function detectSketchType(query) {
-  if (/\b(regal|bücherregal|wandregal|schuhregal)\b/i.test(query)) return "regal";
-  if (/\b(pflanzkasten|blumenkasten|hochbeet|pflanzbeet)\b/i.test(query)) return "pflanzkasten";
-  if (/\b(werkbank|arbeitstisch|werktisch|tisch)\b/i.test(query)) return "werkbank";
-  return "allgemein";
-}
-
 function isBuildRequest(query) {
-  return /\b(?:bau(?:en|e|st|t|anleitung|plan|projekt|weise|vorhaben)|anfertig\w*|montier\w*|montage\w*|skizz\w*|zeichne\w*|zeichnung\w*|entwurf\w*|mach\w*|konstrukt\w*|entwerf\w*|plan(?:en|e|st|t|ung)|aufbau|zusammenbau)\b/i.test(query)
+  return /\b(?:bau(?:en|e|st|t|anleitung|plan|projekt|weise|vorhaben)|gebaut|anfertig\w*|montier\w*|montage\w*|skizz\w*|zeichne\w*|zeichnung\w*|entwurf\w*|mach\w*|konstrukt\w*|entwerf\w*|plan(?:en|e|st|t|ung)|aufbau|zusammenbau)\b/i.test(query)
     || /\bbau\s+(?:eines|einer|ein|eine|einen)\b/i.test(query)
     || /\bherstell(?:en|e|st|te|ten)\b|\bhergestellt\w*|\bherstellung\w*/i.test(query)
     || /\bstell\w*\s+her\b/i.test(query);
@@ -150,31 +115,39 @@ function isBuildRequest(query) {
 function toCentimeters(value, unit) {
   const number = Number(value.replace(",", "."));
   if (!Number.isFinite(number) || number <= 0) return null;
-  if (unit?.toLowerCase() === "m") return number * 100;
-  if (unit?.toLowerCase() === "mm") return number / 10;
+  const normalizedUnit = unit?.toLowerCase() ?? "cm";
+  if (normalizedUnit === "m" || normalizedUnit.startsWith("meter")) return number * 100;
+  if (normalizedUnit === "mm" || normalizedUnit.startsWith("millimeter")) return number / 10;
   return number;
 }
 
 function parseDimensions(query) {
-  const triplet = query.match(/(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/i);
+  const unitPattern = "(millimeter|millimeters|mm|zentimeter|zentimeters|cm|meter|meters|m)?";
+  const tripletPattern = new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*${unitPattern}\\s*[x×]\\s*(\\d+(?:[.,]\\d+)?)\\s*${unitPattern}\\s*[x×]\\s*(\\d+(?:[.,]\\d+)?)\\s*${unitPattern}`, "i");
+  const triplet = query.match(tripletPattern);
   if (triplet) {
     const sharedUnit = triplet[6] || triplet[4] || triplet[2] || "cm";
-    return {
+    const dimensions = {
       width: toCentimeters(triplet[1], triplet[2] || sharedUnit),
       depth: toCentimeters(triplet[3], triplet[4] || sharedUnit),
       height: toCentimeters(triplet[5], triplet[6] || sharedUnit),
-      complete: true,
     };
+    if (Object.values(dimensions).every((value) => value !== null)) return { ...dimensions, complete: true };
   }
 
   const dimensions = {};
-  const namedDimension = /(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?\s*(?:cm\s*)?(breit|breite|tief|tiefe|hoch|höhe|lang|länge)\b/gi;
+  const namedDimension = /(\d+(?:[.,]\d+)?)\s*(millimeters?|mm|zentimeters?|cm|meters?|m)?\s*(breit|breite|breiten|tief|tiefe|tiefen|hoch|höhe|höhen|lang|länge|längen)\b/gi;
   for (const match of query.matchAll(namedDimension)) {
     const label = match[3].toLowerCase();
-    const key = label.startsWith("breit") ? "width" : label.startsWith("tief") ? "depth" : label.startsWith("hoch") || label.startsWith("höh") ? "height" : "width";
-    dimensions[key] = toCentimeters(match[1], match[2] || "cm");
+    const key = label.startsWith("breit") || label.startsWith("läng") || label.startsWith("lang")
+      ? "width"
+      : label.startsWith("tief")
+        ? "depth"
+        : "height";
+    const value = toCentimeters(match[1], match[2]);
+    if (value !== null) dimensions[key] = value;
   }
-  return Object.keys(dimensions).length ? { ...dimensions, complete: false } : null;
+  return Object.keys(dimensions).length ? { ...dimensions, complete: false } : {};
 }
 
 function formatDimension(value) {
@@ -182,60 +155,50 @@ function formatDimension(value) {
   return `${Number.isInteger(rounded) ? rounded : rounded.toString().replace(".", ",")} cm`;
 }
 
-function createSketch(type, dimensions) {
+function createSketch(dimensions, query) {
   const namespace = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(namespace, "svg");
-  svg.setAttribute("viewBox", "0 0 420 280");
+  svg.setAttribute("viewBox", "0 0 420 300");
   svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", `${sketchExamples[type].label}, schematische Vorderansicht mit Maßangaben`);
+  svg.setAttribute("aria-label", `Schematische Skizze zu ${query}`);
 
   const add = (tag, attributes, text) => {
     const node = document.createElementNS(namespace, tag);
     Object.entries(attributes).forEach(([name, value]) => node.setAttribute(name, String(value)));
-    if (text) node.textContent = text;
+    if (text !== undefined) node.textContent = text;
     svg.append(node);
     return node;
   };
-  const width = Math.max(120, Math.min(230, dimensions.width / Math.max(dimensions.width, dimensions.height) * 230));
-  const height = Math.max(100, Math.min(175, dimensions.height / Math.max(dimensions.width, dimensions.height) * 175));
-  const x = 100 + (220 - width) / 2;
-  const y = 42 + (175 - height);
+  const fallbackDimension = Math.max(dimensions.width ?? 0, dimensions.height ?? 0, dimensions.depth ?? 0) || 100;
+  const widthValue = dimensions.width ?? fallbackDimension;
+  const heightValue = dimensions.height ?? fallbackDimension;
+  const depthValue = dimensions.depth ?? fallbackDimension;
+  const largest = Math.max(widthValue, heightValue, depthValue);
+  const width = Math.max(45, 160 * widthValue / largest);
+  const height = Math.max(45, 125 * heightValue / largest);
+  const depth = Math.max(16, 42 * depthValue / largest);
+  const x = 105 + (190 - width) / 2;
+  const y = 85 + (125 - height);
   const right = x + width;
   const bottom = y + height;
+  const backX = x + depth;
+  const backY = y - depth * 0.55;
   const stroke = "#19634c";
   const fill = "#eaf1e8";
-  const common = { stroke, "stroke-width": 3, fill };
 
-  add("rect", { x, y, width, height, ...common, rx: 2 });
-  if (type === "regal") {
-    [0.33, 0.66].forEach((fraction) => {
-      const shelfY = y + height * fraction;
-      add("line", { x1: x + 3, y1: shelfY, x2: right - 3, y2: shelfY, stroke, "stroke-width": 4 });
-    });
-    add("line", { x1: x + 7, y1: y + 4, x2: x + 7, y2: bottom - 4, stroke, "stroke-width": 2 });
-  } else if (type === "pflanzkasten") {
-    add("line", { x1: x + 4, y1: y + height * 0.35, x2: right - 4, y2: y + height * 0.35, stroke: "#8b7546", "stroke-width": 2, "stroke-dasharray": "5 4" });
-    add("line", { x1: x + width * 0.35, y1: bottom, x2: x + width * 0.35, y2: bottom + 12, stroke, "stroke-width": 3 });
-    add("line", { x1: x + width * 0.65, y1: bottom, x2: x + width * 0.65, y2: bottom + 12, stroke, "stroke-width": 3 });
-  } else if (type === "werkbank") {
-    add("rect", { x: x - 8, y: y - 10, width: width + 16, height: 12, ...common, rx: 1 });
-    [x + width * 0.12, x + width * 0.78].forEach((legX) => {
-      add("rect", { x: legX, y: y + 2, width: width * 0.1, height: height - 2, fill: "#d8e4d9", stroke, "stroke-width": 2 });
-    });
-  } else {
-    add("line", { x1: x + width * 0.5, y1: y + 4, x2: x + width * 0.5, y2: bottom - 4, stroke: "#829087", "stroke-width": 1.5, "stroke-dasharray": "5 4" });
-    add("line", { x1: x + 4, y1: y + height * 0.5, x2: right - 4, y2: y + height * 0.5, stroke: "#829087", "stroke-width": 1.5, "stroke-dasharray": "5 4" });
-  }
+  add("polygon", { points: `${x},${y} ${backX},${backY} ${backX + width},${backY} ${right},${y}`, fill: "#f4f7f1", stroke, "stroke-width": 2.5 });
+  add("polygon", { points: `${right},${y} ${backX + width},${backY} ${backX + width},${backY + height} ${right},${bottom}`, fill: "#dce8dd", stroke, "stroke-width": 2.5 });
+  add("rect", { x, y, width, height, fill, stroke, "stroke-width": 2.5, rx: 2 });
 
-  add("line", { x1: x, y1: 238, x2: right, y2: 238, stroke: "#829087", "stroke-width": 1.5 });
-  add("line", { x1: x, y1: 231, x2: x, y2: 245, stroke: "#829087", "stroke-width": 1.5 });
-  add("line", { x1: right, y1: 231, x2: right, y2: 245, stroke: "#829087", "stroke-width": 1.5 });
-  add("text", { x: (x + right) / 2, y: 258, fill: "#202623", "font-size": 14, "font-family": "DM Sans, sans-serif", "text-anchor": "middle" }, `Breite ${formatDimension(dimensions.width)}`);
-  add("line", { x1: 75, y1: y, x2: 75, y2: bottom, stroke: "#829087", "stroke-width": 1.5 });
-  add("line", { x1: 68, y1: y, x2: 82, y2: y, stroke: "#829087", "stroke-width": 1.5 });
-  add("line", { x1: 68, y1: bottom, x2: 82, y2: bottom, stroke: "#829087", "stroke-width": 1.5 });
-  add("text", { x: 60, y: (y + bottom) / 2, fill: "#202623", "font-size": 13, "font-family": "DM Sans, sans-serif", "text-anchor": "middle", transform: `rotate(-90 60 ${(y + bottom) / 2})` }, `Höhe ${formatDimension(dimensions.height)}`);
-  add("text", { x: 210, y: 26, fill: "#707771", "font-size": 12, "font-family": "DM Sans, sans-serif", "text-anchor": "middle" }, `Tiefe ${formatDimension(dimensions.depth)} (nicht dargestellt)`);
+  add("line", { x1: x, y1: 242, x2: right, y2: 242, stroke: "#829087", "stroke-width": 1.5 });
+  add("line", { x1: x, y1: 236, x2: x, y2: 248, stroke: "#829087", "stroke-width": 1.5 });
+  add("line", { x1: right, y1: 236, x2: right, y2: 248, stroke: "#829087", "stroke-width": 1.5 });
+  add("text", { x: (x + right) / 2, y: 263, fill: "#202623", "font-size": 13, "font-family": "DM Sans, sans-serif", "text-anchor": "middle" }, dimensions.width ? `Breite ${formatDimension(dimensions.width)}` : "Breite nicht angegeben");
+  add("line", { x1: 77, y1: y, x2: 77, y2: bottom, stroke: "#829087", "stroke-width": 1.5 });
+  add("line", { x1: 71, y1: y, x2: 83, y2: y, stroke: "#829087", "stroke-width": 1.5 });
+  add("line", { x1: 71, y1: bottom, x2: 83, y2: bottom, stroke: "#829087", "stroke-width": 1.5 });
+  add("text", { x: 62, y: (y + bottom) / 2, fill: "#202623", "font-size": 12, "font-family": "DM Sans, sans-serif", "text-anchor": "middle", transform: `rotate(-90 62 ${(y + bottom) / 2})` }, dimensions.height ? `Höhe ${formatDimension(dimensions.height)}` : "Höhe nicht angegeben");
+  add("text", { x: backX + width / 2, y: backY - 8, fill: "#202623", "font-size": 12, "font-family": "DM Sans, sans-serif", "text-anchor": "middle" }, dimensions.depth ? `Tiefe ${formatDimension(dimensions.depth)}` : "Tiefe nicht angegeben");
   return svg;
 }
 
@@ -245,51 +208,28 @@ function renderBuildHelp(query) {
     return;
   }
 
-  const detectedType = detectSketchType(query);
-  const example = sketchExamples[detectedType];
   const parsed = parseDimensions(query);
-  const dimensions = { ...example.dimensions, ...(parsed ?? {}) };
-  delete dimensions.complete;
-
-  buildSummary.textContent = parsed
-    ? `Entwurf für „${query}“ mit ${parsed.complete ? "deinen angegebenen" : "teilweise erkannten"} Maßen. Das Produktmodell oder weitere Suchbegriffe ändern die externe Suche, nicht die schematische Skizze.`
-    : `Entwurf für „${query}“. Da keine Maße erkannt wurden, zeigt die Skizze Beispielmaße. Wähle bei Bedarf ein anderes Beispiel.`;
-  sketchOptions.replaceChildren();
-  Object.entries(sketchExamples).forEach(([type, option]) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `sketch-option${type === detectedType ? " is-selected" : ""}`;
-    button.setAttribute("aria-pressed", String(type === detectedType));
-    button.textContent = `${option.label} · ${formatDimension(option.dimensions.width)} × ${formatDimension(option.dimensions.depth)} × ${formatDimension(option.dimensions.height)}`;
-    button.addEventListener("click", () => {
-      sketchOptions.querySelectorAll(".sketch-option").forEach((item) => {
-        const selected = item === button;
-        item.classList.toggle("is-selected", selected);
-        item.setAttribute("aria-pressed", String(selected));
-      });
-      renderSelectedSketch(type, option.dimensions, query, false);
-    });
-    sketchOptions.append(button);
-  });
-  renderSelectedSketch(detectedType, dimensions, query, Boolean(parsed));
-  buildHelp.hidden = false;
-}
-
-function renderSelectedSketch(type, dimensions, query, hasUserDimensions) {
-  sketchContainer.replaceChildren(createSketch(type, dimensions));
-  const example = sketchExamples[type];
-  buildStepsTitle.textContent = `Erste Schritte: ${example.label}`;
+  const knownDimensions = Object.keys(parsed).filter((key) => key !== "complete");
+  buildSummary.textContent = `Schematische Skizze zu deiner Suche: „${query}“. Die Form ist allgemein und keine objektspezifische Konstruktion.`;
+  buildDimensionNote.textContent = knownDimensions.length
+    ? `Erkannte Maße: ${knownDimensions.map((key) => `${key === "width" ? "Breite" : key === "depth" ? "Tiefe" : "Höhe"} ${formatDimension(parsed[key])}`).join(" · ")}${parsed.complete ? "" : " · Nicht angegebene Maße bleiben offen"}.`
+    : "Keine Maße erkannt. Die Skizze markiert fehlende Maße, statt Werte zu erfinden.";
+  sketchContainer.replaceChildren(createSketch(parsed, query));
+  buildStepsTitle.textContent = "Allgemeine nächste Schritte";
   buildSteps.replaceChildren();
-  example.steps.forEach((step) => {
+  [
+    "Zweck, Einsatzort und Belastung des Gegenstands genau festlegen.",
+    "Fehlende Maße und gewünschte Materialien vor dem Bau ergänzen.",
+    "Bauteile, Verbindungen und Befestigungen passend zum Einsatz planen.",
+    "Vor der Nutzung Stabilität und Sicherheit prüfen; Vorschriften beachten.",
+  ].forEach((step) => {
     const item = document.createElement("li");
     item.textContent = step;
     buildSteps.append(item);
   });
-  buildMaterial.textContent = `Materialidee: ${example.materials}.`;
-  buildDimensionNote.textContent = hasUserDimensions
-    ? "Maße aus deiner Eingabe (unvollständige Maße wurden mit Beispielwerten ergänzt)."
-    : `Beispielmaße für ${example.label}: Breite × Tiefe × Höhe.`;
+  buildMaterial.textContent = "Material und Verbindungsmittel lassen sich aus einer kurzen Suchanfrage nicht zuverlässig ableiten.";
   buildSummary.setAttribute("aria-label", `${query}. ${buildDimensionNote.textContent}`);
+  buildHelp.hidden = false;
 }
 
 form.addEventListener("submit", (event) => {

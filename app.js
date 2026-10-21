@@ -35,6 +35,7 @@ const sketchContainer = document.querySelector("#sketch-container");
 const buildStepsTitle = document.querySelector("#build-steps-title");
 const buildSteps = document.querySelector("#build-steps");
 const buildParts = document.querySelector("#build-parts");
+const buildMaterials = document.querySelector("#build-materials");
 let selectedSearchType = "all";
 let currentSearch = "";
 
@@ -110,7 +111,7 @@ const sketchTypes = [
     id: "roof",
     pattern: /\b(dachstuhl|satteldach|dach|dachsparren|firstpfette|kehlbalken)\b/i,
     title: "Satteldach · konzeptioneller Schnitt",
-    defaults: { width: 800, depth: 600, height: 400, pitch: 45 },
+    defaults: { width: 800, depth: 600, height: 600, pitch: 45 },
     components: ["Sparren (Dachfläche)", "Firstpfette (First)", "Mittelpfetten", "Kehlbalken", "Fußpfette / Auflager", "Stützen und Wandauflager"],
     steps: ["Spannweite, Dachform, Nutzung und örtliche Einwirkungen durch Fachplanung festlegen.", "Querschnitte, Verbindungsmittel, Aussteifung und Auflager statisch bemessen lassen.", "Dachstuhl nur nach geprüfter Werk- und Montageplanung fertigen und errichten."],
     isStructural: true,
@@ -172,6 +173,41 @@ const sketchTypes = [
     defaults: { width: 400, depth: 12, height: 250 },
     components: ["Beplankung", "Ständer (schematisch)", "Riegel", "Boden- und Deckenanschluss"],
     steps: ["Vorhandene Leitungen, Untergrund und Anforderungen an die Wand prüfen.", "Aufbau, Ständerabstände, Dämmung und Beplankung projektspezifisch festlegen.", "Anschlüsse und Befestigung passend zum vorhandenen Bauteil planen.", "Bei tragender, brand- oder schallschutzrelevanter Wand Fachplanung einholen."],
+    isStructural: true,
+  },
+  {
+    id: "bed",
+    pattern: /\b(bett|bettgestell|doppelbett|einzelbett)\b/i,
+    title: "Bettgestell · schematische Konstruktion",
+    defaults: { width: 160, depth: 200, height: 45 },
+    components: ["Seitenteile", "Kopf- und Fußteil", "Mittelträger", "Lattenrostauflage"],
+    steps: ["Matratzenmaß und gewünschte Einlegetiefe aufnehmen.", "Rahmen rechtwinklig verbinden und den Mittelträger passend abstützen.", "Auflageleisten gleichmäßig befestigen und Kanten entgraten.", "Verbindungen und Belastbarkeit vor der Nutzung prüfen."],
+  },
+  {
+    id: "gardenhouse",
+    pattern: /\b(gartenhaus|gerätehaus|gartenhütte|schuppen)\b/i,
+    title: "Gartenhaus · schematische Konstruktion",
+    defaults: { width: 300, depth: 250, height: 230, pitch: 25 },
+    components: ["Wandrahmen", "Eckpfosten", "Dachtragwerk", "Türöffnung", "Boden / Fundament"],
+    steps: ["Baugrund, Entwässerung, Windbeanspruchung und Genehmigungspflichten prüfen.", "Gründung, Aussteifung und Dachaufbau projektbezogen planen lassen.", "Wandrahmen lot- und winkelgerecht montieren.", "Dachdeckung, Anschlüsse und Holzschutz fachgerecht ausführen."],
+    isStructural: true,
+  },
+  {
+    id: "fence",
+    pattern: /\b(zaun|sichtschutz|gartenzaun|lattenzaun)\b/i,
+    title: "Zaunfeld · schematische Konstruktion",
+    defaults: { width: 200, depth: 10, height: 120 },
+    components: ["Zaunlatten / Füllung", "Querholme", "Zaunpfosten", "Pfostenfundamente"],
+    steps: ["Grenzverlauf, Grundstücksregeln und Leitungen im Boden klären.", "Pfostenabstände und Fundamentierung an Höhe und Windlast anpassen.", "Holme fluchtgerecht befestigen und Füllung gleichmäßig montieren.", "Holzschutz und sichere Kanten prüfen."],
+    isStructural: true,
+  },
+  {
+    id: "beam",
+    pattern: /\b(balken|kantholz|träger|holzträger)\b/i,
+    title: "Balken · schematische Darstellung",
+    defaults: { width: 300, depth: 12, height: 20 },
+    components: ["Balkenkörper", "Auflager links", "Auflager rechts", "Verbindung / Befestigung"],
+    steps: ["Spannweite, Lasten, Holzqualität und Auflagerbedingungen erfassen.", "Querschnitt und Anschlüsse bei tragender Verwendung statisch bemessen lassen.", "Bauteil vor Einbau auf Schäden und passende Lagerung prüfen."],
     isStructural: true,
   },
   {
@@ -413,6 +449,38 @@ function drawGeneralSketch(builder, type, dimensions) {
     rect(x + 45, y + h, 65, 15, "sketch-hatched");
     rect(x + w - 84, y + h, 65, 15, "sketch-hatched");
     anchors.push([x + 180, y + 57], [x + 180, y + 165], [x + 72, y + 175], [x + w - 50, y + h + 5]);
+  } else if (type.id === "bed") {
+    rect(x + 40, y + 25, w - 80, h - 45, "sketch-fill");
+    rect(x + 40, y + 25, w - 80, 24, "sketch-timber");
+    line(x + w / 2, y + 50, x + w / 2, y + h - 20, "sketch-timber-line");
+    [0.35, 0.48, 0.61, 0.74, 0.87].forEach((fraction) => line(x + 48, y + h * fraction, x + w - 48, y + h * fraction, "sketch-structure"));
+    anchors.push([x + 65, y + 38], [x + w / 2, y + h * 0.55], [x + w / 2, y + h * 0.72], [x + w - 52, y + h - 25]);
+  } else if (type.id === "gardenhouse") {
+    polygon(`${x + 25},${y + 92} ${x + w / 2},${y + 20} ${x + w - 25},${y + 92} ${x + w - 25},${y + h - 5} ${x + 25},${y + h - 5}`, "sketch-roof-fill");
+    rect(x + 45, y + 95, w - 90, h - 105, "sketch-hatched");
+    rect(x + w / 2 - 27, y + h - 102, 54, 97, "sketch-timber");
+    line(x + w / 2, y + 20, x + w / 2, y + 91, "sketch-rafter-secondary");
+    anchors.push([x + w / 2, y + 55], [x + 65, y + 135], [x + w - 55, y + h - 35], [x + w / 2, y + h - 55]);
+  } else if (type.id === "fence") {
+    const left = x + 35;
+    const right = x + w - 35;
+    line(left, y + 45, right, y + 45, "sketch-timber-line");
+    line(left, y + h - 45, right, y + h - 45, "sketch-timber-line");
+    [0, 0.2, 0.4, 0.6, 0.8, 1].forEach((fraction) => {
+      const postX = left + fraction * (right - left);
+      rect(postX - 5, y + 25, 10, h - 50, "sketch-timber");
+    });
+    for (let index = 1; index < 12; index += 1) {
+      const slatX = left + index * ((right - left) / 12);
+      line(slatX, y + 50, slatX, y + h - 50, "sketch-structure");
+    }
+    anchors.push([x + w / 2, y + 80], [x + w / 2, y + h - 45], [left, y + h / 2], [right, y + h - 25]);
+  } else if (type.id === "beam") {
+    rect(x + 45, y + 95, w - 90, 58, "sketch-hatched");
+    rect(x + 68, y + 153, 42, 63, "sketch-timber");
+    rect(x + w - 110, y + 153, 42, 63, "sketch-timber");
+    line(x + 68, y + 216, x + w - 68, y + 216, "sketch-muted-line");
+    anchors.push([x + w / 2, y + 120], [x + 88, y + 180], [x + w - 88, y + 180], [x + w / 2, y + 215]);
   } else {
     rect(x + 65, y + 45, w - 130, h - 80, "sketch-fill");
     line(x + 65, y + 110, x + w - 65, y + 110, "sketch-structure");
@@ -492,8 +560,25 @@ function renderBuildHelp(query) {
     item.textContent = part;
     buildParts.append(item);
   });
+  buildMaterials.replaceChildren();
+  type.components.forEach((part) => {
+    const item = document.createElement("li");
+    item.textContent = `${part} · Material und Querschnitt projektspezifisch festlegen`;
+    buildMaterials.append(item);
+  });
   buildSummary.setAttribute("aria-label", `${query}. ${buildDimensionNote.textContent}`);
   buildHelp.hidden = false;
+  window.dispatchEvent(new CustomEvent("werkfinder:cad-model", {
+    detail: {
+      type: type.id,
+      title: type.title,
+      width: dimensions.width,
+      height: dimensions.height,
+      depth: dimensions.depth,
+      pitch: dimensions.pitch ?? type.defaults.pitch ?? 0,
+      components: type.components,
+    },
+  }));
 }
 
 form.addEventListener("submit", (event) => {
